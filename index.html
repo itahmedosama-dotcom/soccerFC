@@ -23,6 +23,8 @@
     <label>اسمك</label>
     <input id="bsName" placeholder="مثلاً: محمد">
     <div style="margin-top:10px;"><label>يوزر نيم</label><input id="bsUsername" placeholder="mo7amed"></div>
+    <div style="margin-top:10px;"><label>رقم التليفون</label><input id="bsPhone" type="tel" placeholder="01xxxxxxxxx"></div>
+    <div style="margin-top:10px;"><label>الايميل</label><input id="bsEmail" type="email" placeholder="name@email.com"></div>
     <div style="margin-top:10px;"><label>باسورد</label><input id="bsPassword" type="password"></div>
     <div style="margin-top:14px;"><button style="width:100%" onclick="bootstrapAdmin()">إنشاء حساب الأدمن</button></div>
     <div class="login-err" id="bsErr">لازم تملأ كل الحقول</div>
@@ -44,6 +46,8 @@
     <label>اسمك</label>
     <input id="suName" placeholder="مثلاً: كريم">
     <div style="margin-top:10px;"><label>يوزر نيم</label><input id="suUsername" placeholder="karim"></div>
+    <div style="margin-top:10px;"><label>رقم التليفون</label><input id="suPhone" type="tel" placeholder="01xxxxxxxxx"></div>
+    <div style="margin-top:10px;"><label>الايميل</label><input id="suEmail" type="email" placeholder="name@email.com"></div>
     <div style="margin-top:10px;"><label>باسورد</label><input id="suPassword" type="password"></div>
     <div class="login-err" id="suErr">لازم تملأ كل الحقول</div>
     <div style="margin-top:14px;"><button style="width:100%" onclick="signup()">إرسال طلب الانضمام</button></div>
@@ -85,14 +89,19 @@
     <h2>الشريط الإعلاني</h2>
     <div class="row">
       <div style="flex:3">
-        <label>نص الإعلان (مواعيد مباريات، تنبيهات، إلخ)</label>
+        <label>نص إعلان جديد (مواعيد مباريات، تنبيهات، إلخ)</label>
         <input id="announcementText" placeholder="مثلاً: مباراة الجمعة الساعة 9 مساءً في ملعب النادي">
       </div>
-      <div style="flex:0 0 auto; align-self:flex-end; display:flex; align-items:center; gap:8px;">
-        <label style="display:flex; align-items:center; gap:6px; margin:0;"><input type="checkbox" id="announcementActive" style="width:auto;"> مفعّل</label>
-        <button onclick="saveAnnouncement()">حفظ</button>
+      <div>
+        <label>يوقف تلقائيًا في (اختياري)</label>
+        <input type="datetime-local" id="announcementExpiry">
+      </div>
+      <div style="flex:0 0 auto; align-self:flex-end;">
+        <button onclick="addAnnouncement()">➕ إضافة الإعلان</button>
       </div>
     </div>
+    <div class="sub" style="margin:4px 0 10px;">كل الإعلانات اللي عملتها بتفضل محفوظة تحت، تقدر ترجعلها وتفعّلها تاني في أي وقت.</div>
+    <div id="announcementsListWrap"></div>
   </section>
 
   <section id="settingsSection3" class="admin-only hidden">
@@ -105,6 +114,8 @@
     <div class="row">
       <div><label>الاسم</label><input id="newUserName" placeholder="مثلاً: سارة"></div>
       <div><label>يوزر نيم</label><input id="newUserUsername" placeholder="sara"></div>
+      <div><label>رقم التليفون</label><input id="newUserPhone" type="tel" placeholder="01xxxxxxxxx"></div>
+      <div><label>الايميل</label><input id="newUserEmail" type="email" placeholder="name@email.com"></div>
       <div><label>باسورد</label><input id="newUserPassword" type="password"></div>
       <div>
         <label>الصلاحية</label>
@@ -184,9 +195,22 @@
 
   <section id="analysisSection">
     <h2>تحليل الأفضل</h2>
+    <div class="print-bar no-print">
+      <button class="ghost" onclick="printFullPage()">🖨️ طباعة الصفحة كلها</button>
+      <button class="ghost" onclick="printAllAnalysis()">🖨️ طباعة كل التحليل</button>
+      <select id="printPlayerSelect"></select>
+      <button class="ghost" onclick="printSelectedPlayer()">🖨️ طباعة تحليل اللاعب ده</button>
+    </div>
     <div id="podium"></div><canvas id="statsChart" style="max-height:320px;margin:20px 0"></canvas><div id="analysisWrap"></div>
-    
   </section>
+
+  <section id="teamAnalysisSection">
+    <h2>تحليل الفرق</h2>
+    <div class="sub" style="margin-bottom:10px;">أي فريق بيكسب أكتر، ومع أنهي تشكيلة لاعبين.</div>
+    <div id="teamAnalysisWrap"></div>
+  </section>
+
+  <div id="printSinglePlayerArea"></div>
 
 </div>
 
@@ -197,7 +221,12 @@ const SHEET_API_URL = "https://script.google.com/macros/s/AKfycbxn7KnZSOFtip3tEO
 
 let ROLE = null;       // 'admin' | 'viewer'
 let CURRENT_USER = null;
-let DATA = { users: [], players: [], teams: [], matches: [], meta: { announcement:'', announcementActive:false } };
+let DATA = { users: [], players: [], teams: [], matches: [], announcements: [] };
+
+function normUsername(u){ return (u||'').trim().toLowerCase(); }
+function usernameTaken(username, excludeId){
+  return DATA.users.some(u => normUsername(u.username) === normUsername(username) && u.id !== excludeId);
+}
 
 function ensurePlayerForName(name){
   const clean = (name||'').trim();
@@ -227,7 +256,7 @@ async function fetchData(){
   const res = await fetch(SHEET_API_URL, { method:'GET' });
   if(!res.ok) throw new Error('bad response');
   const json = await res.json();
-  DATA.users = (json.users || []).map(u=>({id:u.id, name:u.name, username:u.username, password:u.password, role:u.role, status:u.status || 'approved'}));
+  DATA.users = (json.users || []).map(u=>({id:u.id, name:u.name, username:u.username, password:u.password, phone:u.phone||'', email:u.email||'', role:u.role, status:u.status || 'approved'}));
   DATA.players = (json.players || []).map(p=>({id:p.id, name:p.name}));
   DATA.teams = (json.teams || []).map(t=>({id:t.id, name:t.name}));
   DATA.matches = (json.matches || []).map(m=>({
@@ -236,10 +265,23 @@ async function fetchData(){
     teamB:{ name:m.teamBName, players: String(m.teamBPlayers||'').split(',').filter(Boolean) },
     scoreA:Number(m.scoreA)||0, scoreB:Number(m.scoreB)||0
   }));
-  DATA.meta = {
-    announcement: (json.meta && json.meta.announcement) || '',
-    announcementActive: !!(json.meta && (json.meta.announcementActive === true || json.meta.announcementActive === 'true'))
-  };
+  DATA.announcements = (json.announcements || []).map(a=>({
+    id:a.id, text:a.text||'', active: a.active===true||a.active==='true',
+    expiresAt:a.expiresAt||'', createdAt:a.createdAt||''
+  }));
+}
+
+// يقفل تلقائيًا أي إعلان عدّى معاد انتهائه، ويرجّع true لو حصل تغيير محتاج حفظ
+function expireAnnouncements(){
+  const now = new Date();
+  let changed = false;
+  DATA.announcements.forEach(a=>{
+    if(a.active && a.expiresAt){
+      const exp = new Date(a.expiresAt);
+      if(!isNaN(exp.getTime()) && exp <= now){ a.active = false; changed = true; }
+    }
+  });
+  return changed;
 }
 
 async function pushData(){
@@ -271,6 +313,7 @@ async function refreshData(){
   if(btn){ btn.disabled = true; btn.textContent = '⏳ بيحدث...'; }
   try{
     await fetchData();
+    if(expireAnnouncements()) pushData();
     renderAll();
     if(ROLE) renderAnnouncement();
   }catch(e){
@@ -295,6 +338,7 @@ async function init(){
     return;
   }
   document.getElementById('gateSpinner').classList.add('hidden');
+  if(expireAnnouncements()) pushData();
   renderAnnouncement();
   if(DATA.users.length === 0){
     document.getElementById('gateTitle').textContent = 'أهلاً بيك';
@@ -310,12 +354,18 @@ async function init(){
 async function bootstrapAdmin(){
   const name = document.getElementById('bsName').value.trim();
   const username = document.getElementById('bsUsername').value.trim();
+  const phone = document.getElementById('bsPhone').value.trim();
+  const email = document.getElementById('bsEmail').value.trim();
   const password = document.getElementById('bsPassword').value;
-  if(!name || !username || !password){ document.getElementById('bsErr').style.display='block'; return; }
-  DATA.users.push({id:uid(), name, username, password, role:'admin', status:'approved'});
+  const errEl = document.getElementById('bsErr');
+  if(!name || !username || !password){ errEl.textContent='لازم تملأ كل الحقول'; errEl.style.display='block'; return; }
+  if(usernameTaken(username)){ errEl.textContent='اليوزر نيم ده مستخدم قبل كده'; errEl.style.display='block'; return; }
+  errEl.style.display='none';
+  const user = {id:uid(), name, username, password, phone, email, role:'admin', status:'approved'};
+  DATA.users.push(user);
   ensurePlayerForName(name);
   await pushData();
-  enterApp({name, username, role:'admin', status:'approved'});
+  enterApp(user);
 }
 
 function showLogin(){
@@ -333,11 +383,14 @@ function showSignup(){
 async function signup(){
   const name = document.getElementById('suName').value.trim();
   const username = document.getElementById('suUsername').value.trim();
+  const phone = document.getElementById('suPhone').value.trim();
+  const email = document.getElementById('suEmail').value.trim();
   const password = document.getElementById('suPassword').value;
   const errEl = document.getElementById('suErr');
   if(!name || !username || !password){ errEl.textContent='لازم تملأ كل الحقول'; errEl.style.display='block'; return; }
-  if(DATA.users.some(u=>u.username===username)){ errEl.textContent='اليوزر نيم ده مستخدم قبل كده'; errEl.style.display='block'; return; }
-  DATA.users.push({id:uid(), name, username, password, role:'viewer', status:'pending'});
+  if(usernameTaken(username)){ errEl.textContent='اليوزر نيم ده مستخدم قبل كده'; errEl.style.display='block'; return; }
+  errEl.style.display='none';
+  DATA.users.push({id:uid(), name, username, password, phone, email, role:'viewer', status:'pending'});
   ensurePlayerForName(name);
   await pushData();
   document.getElementById('signupForm').classList.add('hidden');
@@ -386,6 +439,31 @@ function playCheer(){
     gain.connect(ctx.destination);
     noise.start();
     noise.stop(ctx.currentTime + duration);
+
+    // applause: a burst of short, sharp noise "claps" layered on top of the crowd roar
+    const clapCount = 26;
+    for(let i=0;i<clapCount;i++){
+      const t = 0.05 + Math.random() * (duration - 0.3);
+      const clapLen = Math.floor(ctx.sampleRate * 0.035);
+      const clapBuffer = ctx.createBuffer(1, clapLen, ctx.sampleRate);
+      const cd = clapBuffer.getChannelData(0);
+      for(let j=0;j<clapLen;j++){ cd[j] = (Math.random()*2-1) * (1 - j/clapLen); }
+      const clapSrc = ctx.createBufferSource();
+      clapSrc.buffer = clapBuffer;
+      const hp = ctx.createBiquadFilter();
+      hp.type = 'highpass';
+      hp.frequency.value = 1500 + Math.random()*1500;
+      const cg = ctx.createGain();
+      const clapStart = ctx.currentTime + t;
+      cg.gain.setValueAtTime(0.001, clapStart);
+      cg.gain.linearRampToValueAtTime(0.22 + Math.random()*0.18, clapStart + 0.005);
+      cg.gain.exponentialRampToValueAtTime(0.001, clapStart + 0.06);
+      clapSrc.connect(hp);
+      hp.connect(cg);
+      cg.connect(ctx.destination);
+      clapSrc.start(clapStart);
+      clapSrc.stop(clapStart + 0.07);
+    }
 
     // referee-style celebratory whistle on top of the roar
     [1700, 2150].forEach((freq, idx)=>{
@@ -438,21 +516,26 @@ function toggleSettings(){
   document.getElementById('settingsSection').classList.toggle('hidden');
   document.getElementById('settingsSection2').classList.toggle('hidden');
   document.getElementById('settingsSection3').classList.toggle('hidden');
-  document.getElementById('announcementText').value = (DATA.meta && DATA.meta.announcement) || '';
-  document.getElementById('announcementActive').checked = !!(DATA.meta && DATA.meta.announcementActive);
+  document.getElementById('announcementText').value = '';
+  document.getElementById('announcementExpiry').value = '';
+  renderAnnouncementsList();
 }
 
 async function addUser(){
   const name = document.getElementById('newUserName').value.trim();
   const username = document.getElementById('newUserUsername').value.trim();
+  const phone = document.getElementById('newUserPhone').value.trim();
+  const email = document.getElementById('newUserEmail').value.trim();
   const password = document.getElementById('newUserPassword').value;
   const role = document.getElementById('newUserRole').value;
   if(!name || !username || !password){ alert('املأ كل الحقول'); return; }
-  if(DATA.users.some(u=>u.username===username)){ alert('اليوزر نيم ده مستخدم قبل كده'); return; }
-  DATA.users.push({id:uid(), name, username, password, role, status:'approved'});
+  if(usernameTaken(username)){ alert('اليوزر نيم ده مستخدم قبل كده'); return; }
+  DATA.users.push({id:uid(), name, username, password, phone, email, role, status:'approved'});
   ensurePlayerForName(name);
   document.getElementById('newUserName').value='';
   document.getElementById('newUserUsername').value='';
+  document.getElementById('newUserPhone').value='';
+  document.getElementById('newUserEmail').value='';
   document.getElementById('newUserPassword').value='';
   await pushData();
   renderUsersList();
@@ -462,13 +545,19 @@ async function addUser(){
 }
 
 function renderAnnouncement(){
-  const show = DATA.meta && DATA.meta.announcementActive && DATA.meta.announcement && DATA.meta.announcement.trim();
+  const now = new Date();
+  const active = (DATA.announcements||[]).filter(a=>{
+    if(!a.active) return false;
+    if(a.expiresAt && new Date(a.expiresAt) <= now) return false;
+    return a.text && a.text.trim();
+  });
+  const text = active.map(a=>a.text.trim()).join('   •   ');
   const loginEl = document.getElementById('announcementBannerLogin');
   const appEl = document.getElementById('announcementBannerApp');
   [loginEl, appEl].forEach(el=>{
     if(!el) return;
-    if(show){
-      el.innerHTML = `<div class="marquee-track"><span>📣 ${DATA.meta.announcement}</span><span>📣 ${DATA.meta.announcement}</span></div>`;
+    if(text){
+      el.innerHTML = `<div class="marquee-track"><span>📣 ${text}</span></div>`;
       el.classList.remove('hidden');
     } else {
       el.innerHTML = '';
@@ -477,29 +566,21 @@ function renderAnnouncement(){
   });
 }
 
-function renderMyStats(){
-  const el = document.getElementById('myStatsSection');
-  if(!el || !CURRENT_USER) return;
-  const myPlayer = DATA.players.find(p => p.name.trim().toLowerCase() === CURRENT_USER.name.trim().toLowerCase());
-  if(!myPlayer){ el.innerHTML = ''; return; }
-
+function computePlayerDetail(playerId){
+  const player = DATA.players.find(p=>p.id===playerId);
+  if(!player) return null;
   const myMatches = DATA.matches.filter(m =>
-    m.teamA.players.includes(myPlayer.id) || m.teamB.players.includes(myPlayer.id)
+    m.teamA.players.includes(player.id) || m.teamB.players.includes(player.id)
   );
-
-  if(myMatches.length === 0){
-    el.innerHTML = `<section><h2>👤 تحليلي الشخصي</h2><div class="empty">لسه ملعبتش أي مباراة متسجلة باسمك (${myPlayer.name}).</div></section>`;
-    return;
-  }
+  if(myMatches.length === 0) return { player, myMatches: [] };
 
   const all = computeStats().filter(s=>s.played>0);
-  const rank = all.findIndex(s => s.name.trim().toLowerCase() === CURRENT_USER.name.trim().toLowerCase());
+  const rank = all.findIndex(s => s.name.trim().toLowerCase() === player.name.trim().toLowerCase());
   const mine = all[rank];
 
-  // ---- Teams played with ----
   const teamMap = {};
   myMatches.forEach(m=>{
-    const onA = m.teamA.players.includes(myPlayer.id);
+    const onA = m.teamA.players.includes(player.id);
     const teamName = onA ? m.teamA.name : m.teamB.name;
     const gf = onA ? m.scoreA : m.scoreB;
     const ga = onA ? m.scoreB : m.scoreA;
@@ -510,10 +591,9 @@ function renderMyStats(){
   });
   const teams = Object.values(teamMap).sort((a,b)=> b.played - a.played);
 
-  // ---- Last 10 matches form ----
   const sorted = [...myMatches].sort((a,b)=> (a.date < b.date ? 1 : -1)).slice(0,10);
   const form = sorted.map(m=>{
-    const onA = m.teamA.players.includes(myPlayer.id);
+    const onA = m.teamA.players.includes(player.id);
     const gf = onA ? m.scoreA : m.scoreB;
     const ga = onA ? m.scoreB : m.scoreA;
     const opponent = onA ? m.teamB.name : m.teamA.name;
@@ -521,49 +601,145 @@ function renderMyStats(){
     return { date:m.date, result, gf, ga, opponent };
   });
 
-  el.innerHTML = `
-    <section>
-      <h2>👤 تحليلي الشخصي</h2>
-      <div class="analysis-card top">
+  return { player, myMatches, mine, rank, teams, form };
+}
+
+function playerDetailHtml(detail, title){
+  const { player, myMatches, mine, rank, teams, form } = detail;
+  if(!myMatches || myMatches.length === 0){
+    return `<h2>${title}</h2><div class="empty">لسه ملعبتش أي مباراة متسجلة باسمك (${player.name}).</div>`;
+  }
+  return `
+    <h2>${title}</h2>
+    <div class="analysis-card top">
+      <div>
+        <div class="p-name">${mine.name} · الترتيب #${rank+1}</div>
+        <div class="p-stats">${mine.played} مباراة · ${mine.win} فوز · ${mine.draw} تعادل · ${mine.loss} خسارة · أهداف ${mine.gf}-${mine.ga}</div>
+      </div>
+      <div style="text-align:left">
+        <div class="score-pill rank1">${mine.points} نقطة</div>
+        <div class="p-stats">${mine.winRate}% فوز</div>
+      </div>
+    </div>
+
+    <h2 style="margin-top:18px;">⚔️ الفرق اللي لعب بيها</h2>
+    ${teams.map(t=>`
+      <div class="analysis-card">
         <div>
-          <div class="p-name">${mine.name} · الترتيب #${rank+1}</div>
-          <div class="p-stats">${mine.played} مباراة · ${mine.win} فوز · ${mine.draw} تعادل · ${mine.loss} خسارة · أهداف ${mine.gf}-${mine.ga}</div>
+          <div class="p-name">${t.name}</div>
+          <div class="p-stats">${t.played} مباراة · ${t.win} فوز · ${t.draw} تعادل · ${t.loss} خسارة</div>
         </div>
         <div style="text-align:left">
-          <div class="score-pill rank1">${mine.points} نقطة</div>
-          <div class="p-stats">${mine.winRate}% فوز</div>
+          <div class="score-pill">${t.gf}-${t.ga}</div>
+          <div class="p-stats">فارق الأهداف</div>
         </div>
       </div>
+    `).join('')}
 
-      <h2 style="margin-top:18px;">⚔️ الفرق اللي لعبت بيها</h2>
-      ${teams.map(t=>`
-        <div class="analysis-card">
-          <div>
-            <div class="p-name">${t.name}</div>
-            <div class="p-stats">${t.played} مباراة · ${t.win} فوز · ${t.draw} تعادل · ${t.loss} خسارة</div>
-          </div>
-          <div style="text-align:left">
-            <div class="score-pill">${t.gf}-${t.ga}</div>
-            <div class="p-stats">فارق الأهداف</div>
-          </div>
-        </div>
-      `).join('')}
-
-      <h2 style="margin-top:18px;">🔥 آخر ${form.length} مباريات</h2>
-      <div class="form-strip">
-        ${form.map(f=>`<span class="form-pill form-${f.result}" title="${f.date} · ضد ${f.opponent} (${f.gf}-${f.ga})">${f.result}</span>`).join('')}
-      </div>
-    </section>
+    <h2 style="margin-top:18px;">🔥 آخر ${form.length} مباريات</h2>
+    <div class="form-strip">
+      ${form.map(f=>`<span class="form-pill form-${f.result}" title="${f.date} · ضد ${f.opponent} (${f.gf}-${f.ga})">${f.result}</span>`).join('')}
+    </div>
   `;
 }
 
-async function saveAnnouncement(){
-  const text = document.getElementById('announcementText').value.trim();
-  const active = document.getElementById('announcementActive').checked;
-  DATA.meta = { announcement: text, announcementActive: active };
+function renderMyStats(){
+  const el = document.getElementById('myStatsSection');
+  if(!el || !CURRENT_USER) return;
+  const myPlayer = DATA.players.find(p => p.name.trim().toLowerCase() === CURRENT_USER.name.trim().toLowerCase());
+  if(!myPlayer){ el.innerHTML = ''; return; }
+  const detail = computePlayerDetail(myPlayer.id);
+  el.innerHTML = `<section>${playerDetailHtml(detail, '👤 تحليلي الشخصي')}</section>`;
+}
+
+function renderPrintPlayerSelect(){
+  const el = document.getElementById('printPlayerSelect');
+  if(!el) return;
+  const prev = el.value;
+  el.innerHTML = DATA.players.map(p=>`<option value="${p.id}">${p.name}</option>`).join('');
+  if(prev && [...el.options].some(o=>o.value===prev)) el.value = prev;
+}
+
+function printFullPage(){
+  window.print();
+}
+
+function printAllAnalysis(){
+  document.body.classList.add('print-analysis-only');
+  window.print();
+}
+
+function printSelectedPlayer(){
+  const sel = document.getElementById('printPlayerSelect');
+  if(!sel || !sel.value) return;
+  const detail = computePlayerDetail(sel.value);
+  if(!detail){ return; }
+  const area = document.getElementById('printSinglePlayerArea');
+  area.innerHTML = `<section>${playerDetailHtml(detail, '👤 تحليل ' + detail.player.name)}</section>`;
+  document.body.classList.add('print-single-player');
+  window.print();
+}
+
+window.addEventListener('afterprint', function(){
+  document.body.classList.remove('print-analysis-only');
+  document.body.classList.remove('print-single-player');
+});
+
+async function addAnnouncement(){
+  const textEl = document.getElementById('announcementText');
+  const expiryEl = document.getElementById('announcementExpiry');
+  const text = textEl.value.trim();
+  const expiresAt = expiryEl.value ? new Date(expiryEl.value).toISOString() : '';
+  if(!text){ alert('اكتب نص الإعلان الأول'); return; }
+  DATA.announcements.push({
+    id: uid(), text, active: true, expiresAt, createdAt: new Date().toISOString()
+  });
+  textEl.value = ''; expiryEl.value = '';
   await pushData();
+  renderAnnouncementsList();
   renderAnnouncement();
-  alert('اتحفظ الشريط الإعلاني');
+}
+async function toggleAnnouncement(id){
+  const a = DATA.announcements.find(a=>a.id===id);
+  if(!a) return;
+  a.active = !a.active;
+  await pushData();
+  renderAnnouncementsList();
+  renderAnnouncement();
+}
+async function deleteAnnouncement(id){
+  DATA.announcements = DATA.announcements.filter(a=>a.id!==id);
+  await pushData();
+  renderAnnouncementsList();
+  renderAnnouncement();
+}
+function formatDateTime(iso){
+  if(!iso) return '';
+  const d = new Date(iso);
+  if(isNaN(d.getTime())) return '';
+  return d.toLocaleString('ar-EG', {dateStyle:'medium', timeStyle:'short'});
+}
+function renderAnnouncementsList(){
+  const el = document.getElementById('announcementsListWrap');
+  if(!el) return;
+  if(DATA.announcements.length===0){ el.innerHTML = '<div class="empty">لسه ما ضفتش أي إعلان.</div>'; return; }
+  const now = new Date();
+  const sorted = [...DATA.announcements].sort((a,b)=> (a.createdAt < b.createdAt ? 1 : -1));
+  el.innerHTML = sorted.map(a=>{
+    const expired = a.expiresAt && new Date(a.expiresAt) <= now;
+    const isOn = a.active && !expired;
+    return `<div class="ann-item ${isOn?'active':''} ${expired?'expired':''}">
+      <div>
+        <div class="ann-text">📣 ${a.text}</div>
+        <div class="ann-meta">${a.expiresAt ? 'يوقف تلقائيًا: '+formatDateTime(a.expiresAt)+(expired?' (خلص)':'') : 'بدون معاد إيقاف تلقائي'}</div>
+      </div>
+      <div class="ann-actions">
+        <span class="ann-status ${isOn?'on':'off'}">${isOn?'شغال':'متوقف'}</span>
+        <button class="ghost" onclick="toggleAnnouncement('${a.id}')">${a.active?'إيقاف':'تفعيل'}</button>
+        <button class="danger" onclick="deleteAnnouncement('${a.id}')">حذف</button>
+      </div>
+    </div>`;
+  }).join('');
 }
 
 function renderPendingList(){
@@ -575,7 +751,7 @@ function renderPendingList(){
     <div class="user-row">
       <div>
         <span class="p-name">${u.name}</span>
-        <div class="meta">@${u.username}</div>
+        <div class="meta">@${u.username}${u.phone?' · 📱 '+u.phone:''}${u.email?' · ✉️ '+u.email:''}</div>
       </div>
       <div style="display:flex; gap:8px; align-items:center;">
         <select id="role-${u.id}" style="width:auto;">
@@ -618,7 +794,7 @@ function renderUsersList(){
       <div>
         <span class="p-name">${u.name}</span>
         <span class="badge ${u.role}">${u.role==='admin'?'أدمن':'مشاهد'}</span>
-        <div class="meta">@${u.username}</div>
+        <div class="meta">@${u.username}${u.phone?' · 📱 '+u.phone:''}${u.email?' · ✉️ '+u.email:''}</div>
       </div>
       <button class="danger" onclick="removeUser('${u.id}')">حذف</button>
     </div>
@@ -821,6 +997,59 @@ function computeStats(){
   })).sort((a,b)=> b.points - a.points || b.winRate - a.winRate || b.gf - a.gf);
 }
 
+function computeTeamStats(){
+  const stats = {};
+  DATA.matches.forEach(m=>{
+    const sides = [
+      { name:m.teamA.name, gf:m.scoreA, ga:m.scoreB, players:m.teamA.players },
+      { name:m.teamB.name, gf:m.scoreB, ga:m.scoreA, players:m.teamB.players }
+    ];
+    sides.forEach(side=>{
+      if(!side.name) return;
+      if(!stats[side.name]) stats[side.name] = { name:side.name, played:0, win:0, draw:0, loss:0, gf:0, ga:0, lineups:{} };
+      const s = stats[side.name];
+      s.played++; s.gf += side.gf; s.ga += side.ga;
+      const result = side.gf>side.ga ? 'win' : (side.gf===side.ga ? 'draw' : 'loss');
+      s[result]++;
+      const key = [...side.players].sort().join(',');
+      if(!s.lineups[key]) s.lineups[key] = { players: side.players, played:0, win:0, draw:0, loss:0 };
+      s.lineups[key].played++; s.lineups[key][result]++;
+    });
+  });
+  return Object.values(stats).map(s=>{
+    const lineupList = Object.values(s.lineups).sort((a,b)=> b.win - a.win || b.played - a.played);
+    return {
+      ...s,
+      points: s.win*3 + s.draw,
+      winRate: s.played ? Math.round((s.win/s.played)*100) : 0,
+      bestLineup: lineupList[0]
+    };
+  }).sort((a,b)=> b.points - a.points || b.winRate - a.winRate || b.gf - a.gf);
+}
+
+function renderTeamAnalysis(){
+  const el = document.getElementById('teamAnalysisWrap');
+  if(!el) return;
+  const stats = computeTeamStats().filter(s=>s.played>0);
+  if(stats.length===0){ el.innerHTML = '<div class="empty">لسه ما فيش فرق سجلت مباريات.</div>'; return; }
+  el.innerHTML = stats.map((s,i)=>{
+    const bl = s.bestLineup;
+    const blNames = bl ? bl.players.map(playerName).join('، ') : '';
+    return `
+    <div class="analysis-card ${i===0?'top':''}">
+      <div>
+        <div class="p-name">${i===0?'👑 ':''}${i+1}. ${s.name}</div>
+        <div class="p-stats">${s.played} مباراة · ${s.win} فوز · ${s.draw} تعادل · ${s.loss} خسارة · أهداف ${s.gf}-${s.ga}</div>
+        ${bl ? `<div class="p-stats" style="margin-top:4px;">🔥 أكتر تشكيلة كسبت مع الفريق: ${blNames} (${bl.win} فوز من ${bl.played})</div>` : ''}
+      </div>
+      <div style="text-align:left">
+        <div class="score-pill ${i===0?'rank1':''}">${s.points} نقطة</div>
+        <div class="p-stats">${s.winRate}% فوز</div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
 function renderAnalysis(){
   const el = document.getElementById('analysisWrap');
   const stats = computeStats().filter(s=>s.played>0);
@@ -884,9 +1113,11 @@ function renderAll(){
   renderTeamSelects();
   renderMatchesTable();
   renderAnalysis();
+  renderTeamAnalysis();
+  renderPrintPlayerSelect();
   renderHero(); renderPodium(); renderChart();
   renderMyStats();
-  if(ROLE==='admin'){ renderUsersList(); renderPendingList(); renderTeamsList(); }
+  if(ROLE==='admin'){ renderUsersList(); renderPendingList(); renderTeamsList(); renderAnnouncementsList(); }
 }
 
 init();
