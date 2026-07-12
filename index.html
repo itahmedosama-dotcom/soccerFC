@@ -15,7 +15,7 @@
   <div id="announcementBannerLogin" class="announcement-bar hidden"></div>
   <div class="eyebrow">FC · دوري بيت الشباب</div>
   <h1 id="gateTitle">جاري التحميل</h1>
-  <div class="sub" id="gateSub">بنجيب البيانات من الشيت...</div>
+  <div class="sub" id="gateSub">بنجيب البيانات من الصبر مفتاح الفرج...</div>
   <div class="spinner" id="gateSpinner"></div>
 
   <div id="bootstrapForm" class="login-form hidden">
@@ -35,7 +35,7 @@
     <input id="loginUsername" placeholder="يوزر نيمك">
     <div style="margin-top:10px;"><label>باسورد</label><input id="loginPassword" type="password" onkeydown="if(event.key==='Enter'){doLogin();}"></div>
     <div style="margin-top:10px;">
-      <label>اكتب الكود اللي جنبك (عشان نتأكد إنك مش SPAM)</label>
+      <label>اكتب الكود اللي جنبك (عشان نتأكد إنك مش SPAM ياخفيف)</label>
       <div style="display:flex; align-items:center; gap:8px;">
         <div class="captcha-box" id="loginCaptchaCode"></div>
         <button type="button" class="ghost" onclick="generateCaptcha('login')" title="كود جديد">🔄</button>
@@ -45,12 +45,12 @@
     <div class="login-err" id="loginErr">اليوزر أو الباسورد غلط</div>
     <div style="margin-top:14px;"><button style="width:100%" onclick="doLogin()">دخول</button></div>
     <div style="margin-top:12px; text-align:center;">
-      <span class="switch-role" onclick="showSignup()">مالكش حساب؟ اعمل واحد</span>
+      <span class="switch-role" onclick="showSignup()">مالكش حساب؟ اعمل واحد لاموخذه</span>
     </div>
   </div>
 
   <div id="signupForm" class="login-form hidden">
-    <div class="sub" style="margin-bottom:12px;">اعمل حسابك، وهيتفعّل بعد ما الأدمن يوافق عليه.</div>
+    <div class="sub" style="margin-bottom:12px;">اعمل حسابك، وهيتفعّل بعد ما الأدمن يوافق عليه. هى مش زريبة</div>
     <label>اسمك</label>
     <input id="suName" placeholder="مثلاً: كريم">
     <div style="margin-top:10px;"><label>يوزر نيم</label><input id="suUsername" placeholder="karim"></div>
@@ -58,7 +58,7 @@
     <div style="margin-top:10px;"><label>الايميل</label><input id="suEmail" type="email" placeholder="name@email.com"></div>
     <div style="margin-top:10px;"><label>باسورد</label><input id="suPassword" type="password" onkeydown="if(event.key==='Enter'){signup();}"></div>
     <div style="margin-top:10px;">
-      <label>اكتب الكود اللي جنبك (عشان نتأكد إنك مش SPAM)</label>
+      <label>اكتب الكود اللي جنبك (عشان نتأكد إنك مش SPAM ياخفيف)</label>
       <div style="display:flex; align-items:center; gap:8px;">
         <div class="captcha-box" id="suCaptchaCode"></div>
         <button type="button" class="ghost" onclick="generateCaptcha('su')" title="كود جديد">🔄</button>
@@ -145,6 +145,11 @@
     <div id="usersList"></div>
   </section>
 
+  <section id="matchesSection">
+    <h2>سجل المباريات</h2>
+    <div id="matchesTableWrap"></div>
+  </section>
+
   <section id="analysisSection">
     <h2>تحليل الأفضل</h2>
     <div class="row no-print filter-bar">
@@ -168,6 +173,13 @@
         <label>اختار</label>
         <select id="analysisFilterValue" onchange="renderAnalysis()"></select>
       </div>
+      <div style="align-self:flex-end;">
+        <button class="ghost" id="aiSummaryBtn" onclick="generateAISummary()">🤖 اعمل ملخص الفترة</button>
+      </div>
+    </div>
+    <div id="aiSummaryBox" class="ai-summary-box hidden">
+      <div class="ai-summary-text" id="aiSummaryText"></div>
+      <button class="ghost" onclick="copyAISummary()">📋 انسخ للواتساب</button>
     </div>
     <div class="print-bar no-print">
       <button class="ghost" onclick="printFullPage()">🖨️ طباعة الصفحة كلها</button>
@@ -237,11 +249,6 @@
     </div>
   </section>
 
-  <section id="matchesSection">
-    <h2>سجل المباريات</h2>
-    <div id="matchesTableWrap"></div>
-  </section>
-
   <div id="printSinglePlayerArea"></div>
 
 </div>
@@ -295,7 +302,8 @@ async function fetchData(){
     id:m.id, date:m.date, mode:m.mode,
     teamA:{ name:m.teamAName, players: String(m.teamAPlayers||'').split(',').filter(Boolean) },
     teamB:{ name:m.teamBName, players: String(m.teamBPlayers||'').split(',').filter(Boolean) },
-    scoreA:Number(m.scoreA)||0, scoreB:Number(m.scoreB)||0
+    scoreA:Number(m.scoreA)||0, scoreB:Number(m.scoreB)||0,
+    aiComment: m.aiComment || ''
   }));
   DATA.announcements = (json.announcements || []).map(a=>({
     id:a.id, text:a.text||'', active: a.active===true||a.active==='true',
@@ -1018,11 +1026,12 @@ async function addMatch(){
   if(!teamAName || !teamBName){ alert('لازم تختار أو تكتب اسم لكل فريق'); return; }
   if(teamAPlayers.length===0 || teamBPlayers.length===0){ alert('لازم تختار لاعب واحد على الأقل لكل فريق'); return; }
 
+  const newMatchId = uid();
   DATA.matches.push({
-    id: uid(), mode, date,
+    id: newMatchId, mode, date,
     teamA:{ name: teamAName, players: teamAPlayers },
     teamB:{ name: teamBName, players: teamBPlayers },
-    scoreA, scoreB
+    scoreA, scoreB, aiComment: ''
   });
 
   document.getElementById('teamASelect').value='';
@@ -1037,6 +1046,7 @@ async function addMatch(){
   renderTeamSelects();
 
   await pushData(); renderAll();
+  requestAIComment(newMatchId);
 }
 async function removeMatch(id){
   DATA.matches = DATA.matches.filter(m=>m.id!==id);
@@ -1063,8 +1073,30 @@ async function saveEditMatch(id){
   m.date = (dateEl && dateEl.value) ? dateEl.value : m.date;
   m.scoreA = parseInt((scoreAEl && scoreAEl.value) || 0, 10);
   m.scoreB = parseInt((scoreBEl && scoreBEl.value) || 0, 10);
+  m.aiComment = '';
   editingMatchId = null;
   await pushData(); renderAll();
+  requestAIComment(id);
+}
+
+async function requestAIComment(matchId){
+  const m = DATA.matches.find(x=>x.id===matchId);
+  if(!m) return;
+  try{
+    const res = await fetch(SHEET_API_URL, {
+      method:'POST',
+      headers:{'Content-Type':'text/plain;charset=utf-8'},
+      body: JSON.stringify({ action:'aiComment', match:{ teamAName:m.teamA.name, scoreA:m.scoreA, teamBName:m.teamB.name, scoreB:m.scoreB } })
+    });
+    const json = await res.json();
+    if(json && json.comment){
+      const stillThere = DATA.matches.find(x=>x.id===matchId);
+      if(!stillThere) return;
+      stillThere.aiComment = json.comment;
+      await pushData();
+      renderMatchesTable();
+    }
+  }catch(e){ /* التعليق اختياري، لو فشل منتحرقش دم المستخدم بتنبيه */ }
 }
 
 function playerName(id){
@@ -1094,7 +1126,7 @@ function renderMatchesTable(){
       <td>${m.teamA.name}<br><span style="color:var(--text-dim); font-size:11.5px">${m.teamA.players.map(playerName).join('، ')}</span></td>
       <td class="score-pill">${m.scoreA} - ${m.scoreB}</td>
       <td>${m.teamB.name}<br><span style="color:var(--text-dim); font-size:11.5px">${m.teamB.players.map(playerName).join('، ')}</span></td>
-      <td style="font-size:12px; color:var(--text-dim)">${result}</td>
+      <td style="font-size:12px; color:var(--text-dim)">${result}${m.aiComment ? `<br><span style="color:var(--gold); font-size:11.5px;">🤖 ${m.aiComment}</span>` : ''}</td>
       <td>${ROLE==='admin' ? `<span class="del" onclick="startEditMatch('${m.id}')">تصحيح</span> · <span class="del" onclick="removeMatch('${m.id}')">حذف</span>` : ''}</td>
     </tr>`;
   }).join('');
@@ -1211,6 +1243,44 @@ function renderAnalysisFilterOptions(){
 function onAnalysisFilterTypeChange(){
   renderAnalysisFilterOptions();
   renderAnalysis();
+}
+
+async function generateAISummary(){
+  const box = document.getElementById('aiSummaryBox');
+  const textEl = document.getElementById('aiSummaryText');
+  const btn = document.getElementById('aiSummaryBtn');
+  const filtered = getFilteredMatches();
+  const stats = computeStats(filtered).filter(s=>s.played>0);
+  if(stats.length===0){ alert('مفيش مباريات في الفترة دي عشان نعمل ملخص.'); return; }
+  const lines = stats.map((s,i)=> `${i+1}. ${s.name}: ${s.played} مباراة، ${s.win} فوز، ${s.draw} تعادل، ${s.loss} خسارة، ${s.points} نقطة`).join('\n');
+  if(btn){ btn.disabled = true; btn.textContent = '⏳ بيكتب...'; }
+  try{
+    const res = await fetch(SHEET_API_URL, {
+      method:'POST',
+      headers:{'Content-Type':'text/plain;charset=utf-8'},
+      body: JSON.stringify({ action:'aiSummary', summaryText: lines })
+    });
+    const json = await res.json();
+    if(json && json.summary){
+      textEl.textContent = json.summary;
+      box.classList.remove('hidden');
+    } else {
+      alert('معرفش أعمل الملخص دلوقتي. تأكد إنك حطيت مفتاح Gemini في الـ Apps Script، وحاول تاني.');
+    }
+  }catch(e){
+    alert('مقدرش أوصل لخدمة الذكاء الاصطناعي. تأكد إن الإنترنت شغال.');
+  }
+  if(btn){ btn.disabled = false; btn.textContent = '🤖 اعمل ملخص الفترة'; }
+}
+
+function copyAISummary(){
+  const textEl = document.getElementById('aiSummaryText');
+  if(!textEl || !textEl.textContent) return;
+  navigator.clipboard.writeText(textEl.textContent).then(()=>{
+    alert('اتنسخ ✅ افتح الواتساب والصقه.');
+  }).catch(()=>{
+    alert('مقدرش أنسخ تلقائيًا، انسخ النص يدويًا.');
+  });
 }
 
 function renderAnalysis(){
