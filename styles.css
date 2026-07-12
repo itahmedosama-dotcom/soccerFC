@@ -248,7 +248,7 @@ padding:18px;border-radius:16px;min-width:140px;text-align:center;
 
 @media print{
   body{background:#fff !important; color:#000 !important;}
-  .no-print, .top-nav, .login-gate, .whatsapp-fab, .ai-chat-fab, .ai-chat-panel, .app-footer, input, select, button, .row{ display:none !important; }
+  .no-print, .top-nav, .login-gate, .whatsapp-fab, .ai-chat-fab-wrap, .ai-chat-panel, .app-footer, input, select, button, .row{ display:none !important; }
   section{ box-shadow:none !important; border:1px solid #ccc !important; background:#fff !important; color:#000 !important; }
   h1, h2, .p-name, .eyebrow, .sub, td, th, .p-stats, .ann-meta{ color:#000 !important; }
   .hero::before{ display:none !important; }
@@ -294,20 +294,29 @@ padding:18px;border-radius:16px;min-width:140px;text-align:center;
 }
 .whatsapp-fab:hover{ transform:scale(1.08); }
 
-/* --- أيقونة عائمة منفصلة لمساعد الذكاء الاصطناعي (فوق أيقونة الواتساب) --- */
-.ai-chat-fab{
+/* --- أيقونة عائمة منفصلة لمساعد الذكاء الاصطناعي + جملة جنبها (فوق أيقونة الواتساب) --- */
+.ai-chat-fab-wrap{
   position:fixed;
   bottom:90px;
   left:22px;
+  z-index:999;
+  display:flex;
+  align-items:center;
+  gap:10px;
+  direction:ltr;
+}
+.ai-chat-fab-wrap.hidden{ display:none; }
+.ai-chat-fab{
+  position:relative;
   width:56px;
   height:56px;
+  flex:0 0 auto;
   background:linear-gradient(135deg,#3fa7ff,#2b6cff);
   border-radius:50%;
   display:flex;
   align-items:center;
   justify-content:center;
   box-shadow:0 8px 24px rgba(43,108,255,.45);
-  z-index:999;
   transition:transform .15s, filter .15s;
   border:none;
   cursor:pointer;
@@ -319,6 +328,22 @@ padding:18px;border-radius:16px;min-width:140px;text-align:center;
   position:absolute; top:2px; left:2px; width:12px; height:12px; border-radius:50%;
   background:var(--win); border:2px solid var(--pitch-dark);
 }
+.ai-chat-fab-label{
+  direction:rtl;
+  background:var(--pitch-card);
+  border:1px solid var(--line);
+  color:var(--text);
+  font-size:12.5px;
+  font-weight:700;
+  padding:8px 14px;
+  border-radius:999px;
+  box-shadow:0 6px 18px rgba(0,0,0,.35);
+  white-space:nowrap;
+  cursor:pointer;
+  animation:aiLabelFloat 2.6s ease-in-out infinite;
+}
+.ai-chat-fab-label:hover{ border-color:#2b6cff; }
+@keyframes aiLabelFloat{ 0%,100%{ transform:translateY(0); } 50%{ transform:translateY(-3px); } }
 
 .ai-chat-panel{
   position:fixed; bottom:22px; left:22px; z-index:1000; width:340px; max-width:calc(100vw - 32px);
@@ -370,8 +395,11 @@ padding:18px;border-radius:16px;min-width:140px;text-align:center;
 .ai-chat-img-download:hover{ background:rgba(43,108,255,.28); }
 @media (max-width:600px){
   .ai-chat-panel{ left:10px; right:10px; width:auto; bottom:10px; height:min(70vh, 520px); }
-  .ai-chat-fab{ left:10px; bottom:80px; }
+  .ai-chat-fab-wrap{ left:10px; bottom:80px; }
   .whatsapp-fab{ left:10px; }
+}
+@media (max-width:420px){
+  .ai-chat-fab-label{ display:none; }
 }
 
 /* --- فوتر حقوق الملكية الفكرية --- */
