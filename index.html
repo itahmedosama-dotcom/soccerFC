@@ -25,7 +25,7 @@
     <div style="margin-top:10px;"><label>يوزر نيم</label><input id="bsUsername" placeholder="mo7amed"></div>
     <div style="margin-top:10px;"><label>رقم التليفون</label><input id="bsPhone" type="tel" placeholder="01xxxxxxxxx"></div>
     <div style="margin-top:10px;"><label>الايميل</label><input id="bsEmail" type="email" placeholder="name@email.com"></div>
-    <div style="margin-top:10px;"><label>باسورد</label><input id="bsPassword" type="password"></div>
+    <div style="margin-top:10px;"><label>باسورد</label><input id="bsPassword" type="password" onkeydown="if(event.key==='Enter'){bootstrapAdmin();}"></div>
     <div style="margin-top:14px;"><button style="width:100%" onclick="bootstrapAdmin()">إنشاء حساب الأدمن</button></div>
     <div class="login-err" id="bsErr">لازم تملأ كل الحقول</div>
   </div>
@@ -33,7 +33,15 @@
   <div id="loginForm" class="login-form hidden">
     <label>يوزر نيم</label>
     <input id="loginUsername" placeholder="يوزر نيمك">
-    <div style="margin-top:10px;"><label>باسورد</label><input id="loginPassword" type="password"></div>
+    <div style="margin-top:10px;"><label>باسورد</label><input id="loginPassword" type="password" onkeydown="if(event.key==='Enter'){doLogin();}"></div>
+    <div style="margin-top:10px;">
+      <label>اكتب الكود اللي جنبك (عشان نتأكد إنك مش SPAM)</label>
+      <div style="display:flex; align-items:center; gap:8px;">
+        <div class="captcha-box" id="loginCaptchaCode"></div>
+        <button type="button" class="ghost" onclick="generateCaptcha('login')" title="كود جديد">🔄</button>
+      </div>
+      <input id="loginCaptchaInput" placeholder="اكتب الكود هنا" style="margin-top:6px;" onkeydown="if(event.key==='Enter'){doLogin();}">
+    </div>
     <div class="login-err" id="loginErr">اليوزر أو الباسورد غلط</div>
     <div style="margin-top:14px;"><button style="width:100%" onclick="doLogin()">دخول</button></div>
     <div style="margin-top:12px; text-align:center;">
@@ -48,7 +56,15 @@
     <div style="margin-top:10px;"><label>يوزر نيم</label><input id="suUsername" placeholder="karim"></div>
     <div style="margin-top:10px;"><label>رقم التليفون</label><input id="suPhone" type="tel" placeholder="01xxxxxxxxx"></div>
     <div style="margin-top:10px;"><label>الايميل</label><input id="suEmail" type="email" placeholder="name@email.com"></div>
-    <div style="margin-top:10px;"><label>باسورد</label><input id="suPassword" type="password"></div>
+    <div style="margin-top:10px;"><label>باسورد</label><input id="suPassword" type="password" onkeydown="if(event.key==='Enter'){signup();}"></div>
+    <div style="margin-top:10px;">
+      <label>اكتب الكود اللي جنبك (عشان نتأكد إنك مش SPAM)</label>
+      <div style="display:flex; align-items:center; gap:8px;">
+        <div class="captcha-box" id="suCaptchaCode"></div>
+        <button type="button" class="ghost" onclick="generateCaptcha('su')" title="كود جديد">🔄</button>
+      </div>
+      <input id="suCaptchaInput" placeholder="اكتب الكود هنا" style="margin-top:6px;" onkeydown="if(event.key==='Enter'){signup();}">
+    </div>
     <div class="login-err" id="suErr">لازم تملأ كل الحقول</div>
     <div style="margin-top:14px;"><button style="width:100%" onclick="signup()">إرسال طلب الانضمام</button></div>
     <div style="margin-top:12px; text-align:center;">
@@ -63,6 +79,8 @@
 </div>
 
 <div class="wrap hidden" id="appWrap">
+
+  <div id="announcementBannerApp" class="announcement-bar hidden"></div>
 
   <div class="hero">
     <div class="eyebrow">FC · دوري بيت الشباب</div>
@@ -82,8 +100,6 @@
   </div>
 
   <div id="myStatsSection"></div>
-
-  <div id="announcementBannerApp" class="announcement-bar hidden"></div>
 
   <section id="settingsSection" class="admin-only hidden">
     <h2>الشريط الإعلاني</h2>
@@ -127,6 +143,39 @@
       <div style="align-self:flex-end;"><button onclick="addUser()">إضافة مستخدم</button></div>
     </div>
     <div id="usersList"></div>
+  </section>
+
+  <section id="analysisSection">
+    <h2>تحليل الأفضل</h2>
+    <div class="row no-print filter-bar">
+      <div>
+        <label>من تاريخ</label>
+        <input type="date" id="analysisFrom" onchange="renderAnalysis()">
+      </div>
+      <div>
+        <label>إلى تاريخ</label>
+        <input type="date" id="analysisTo" onchange="renderAnalysis()">
+      </div>
+      <div>
+        <label>عرض حسب</label>
+        <select id="analysisFilterType" onchange="onAnalysisFilterTypeChange()">
+          <option value="all">كل اللاعبين (ترتيب عام)</option>
+          <option value="player">لاعب معيّن</option>
+          <option value="team">فريق معيّن</option>
+        </select>
+      </div>
+      <div id="analysisFilterValueWrap" class="hidden">
+        <label>اختار</label>
+        <select id="analysisFilterValue" onchange="renderAnalysis()"></select>
+      </div>
+    </div>
+    <div class="print-bar no-print">
+      <button class="ghost" onclick="printFullPage()">🖨️ طباعة الصفحة كلها</button>
+      <button class="ghost" onclick="printAllAnalysis()">🖨️ طباعة كل التحليل</button>
+      <select id="printPlayerSelect"></select>
+      <button class="ghost" onclick="printSelectedPlayer()">🖨️ طباعة تحليل اللاعب ده</button>
+    </div>
+    <div id="podium"></div><canvas id="statsChart" style="max-height:320px;margin:20px 0"></canvas><div id="analysisWrap"></div>
   </section>
 
   <section class="admin-only">
@@ -191,23 +240,6 @@
   <section id="matchesSection">
     <h2>سجل المباريات</h2>
     <div id="matchesTableWrap"></div>
-  </section>
-
-  <section id="analysisSection">
-    <h2>تحليل الأفضل</h2>
-    <div class="print-bar no-print">
-      <button class="ghost" onclick="printFullPage()">🖨️ طباعة الصفحة كلها</button>
-      <button class="ghost" onclick="printAllAnalysis()">🖨️ طباعة كل التحليل</button>
-      <select id="printPlayerSelect"></select>
-      <button class="ghost" onclick="printSelectedPlayer()">🖨️ طباعة تحليل اللاعب ده</button>
-    </div>
-    <div id="podium"></div><canvas id="statsChart" style="max-height:320px;margin:20px 0"></canvas><div id="analysisWrap"></div>
-  </section>
-
-  <section id="teamAnalysisSection">
-    <h2>تحليل الفرق</h2>
-    <div class="sub" style="margin-bottom:10px;">أي فريق بيكسب أكتر، ومع أنهي تشكيلة لاعبين.</div>
-    <div id="teamAnalysisWrap"></div>
   </section>
 
   <div id="printSinglePlayerArea"></div>
@@ -348,7 +380,33 @@ async function init(){
     document.getElementById('gateTitle').textContent = 'تسجيل الدخول';
     document.getElementById('gateSub').textContent = 'ادخل بحسابك';
     document.getElementById('loginForm').classList.remove('hidden');
+    generateCaptcha('login');
   }
+}
+
+const CAPTCHA = {};
+function generateCaptcha(prefix){
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  let code = '';
+  for(let i=0;i<5;i++) code += chars[Math.floor(Math.random()*chars.length)];
+  CAPTCHA[prefix] = code;
+  const el = document.getElementById(prefix+'CaptchaCode');
+  if(el){
+    el.innerHTML = code.split('').map(ch=>{
+      const rot = (Math.random()*30-15).toFixed(0);
+      const ty = (Math.random()*6-3).toFixed(0);
+      return `<span style="display:inline-block; transform:rotate(${rot}deg) translateY(${ty}px);">${ch}</span>`;
+    }).join('');
+  }
+  const input = document.getElementById(prefix+'CaptchaInput');
+  if(input) input.value = '';
+}
+function checkCaptcha(prefix){
+  const input = document.getElementById(prefix+'CaptchaInput');
+  const val = (input ? input.value : '').trim().toUpperCase();
+  const ok = !!val && val === CAPTCHA[prefix];
+  if(!ok) generateCaptcha(prefix);
+  return ok;
 }
 
 async function bootstrapAdmin(){
@@ -373,12 +431,14 @@ function showLogin(){
   document.getElementById('loginForm').classList.remove('hidden');
   document.getElementById('gateTitle').textContent = 'تسجيل الدخول';
   document.getElementById('gateSub').textContent = 'ادخل بحسابك';
+  generateCaptcha('login');
 }
 function showSignup(){
   document.getElementById('loginForm').classList.add('hidden');
   document.getElementById('signupForm').classList.remove('hidden');
   document.getElementById('gateTitle').textContent = 'حساب جديد';
   document.getElementById('gateSub').textContent = 'هيتفعّل بعد موافقة الأدمن';
+  generateCaptcha('su');
 }
 async function signup(){
   const name = document.getElementById('suName').value.trim();
@@ -389,6 +449,7 @@ async function signup(){
   const errEl = document.getElementById('suErr');
   if(!name || !username || !password){ errEl.textContent='لازم تملأ كل الحقول'; errEl.style.display='block'; return; }
   if(usernameTaken(username)){ errEl.textContent='اليوزر نيم ده مستخدم قبل كده'; errEl.style.display='block'; return; }
+  if(!checkCaptcha('su')){ errEl.textContent='اكتب كود التحقق صح'; errEl.style.display='block'; return; }
   errEl.style.display='none';
   DATA.users.push({id:uid(), name, username, password, phone, email, role:'viewer', status:'pending'});
   ensurePlayerForName(name);
@@ -403,6 +464,7 @@ async function doLogin(){
   const username = document.getElementById('loginUsername').value.trim();
   const password = document.getElementById('loginPassword').value;
   const errEl = document.getElementById('loginErr');
+  if(!checkCaptcha('login')){ errEl.textContent='اكتب كود التحقق صح'; errEl.style.display='block'; return; }
   const user = DATA.users.find(u=>u.username===username && u.password===password);
   if(!user){ errEl.textContent='اليوزر أو الباسورد غلط'; errEl.style.display='block'; return; }
   if(user.status === 'pending'){ errEl.textContent='حسابك لسه مستني موافقة الأدمن'; errEl.style.display='block'; return; }
@@ -566,15 +628,16 @@ function renderAnnouncement(){
   });
 }
 
-function computePlayerDetail(playerId){
+function computePlayerDetail(playerId, matches){
+  matches = matches || DATA.matches;
   const player = DATA.players.find(p=>p.id===playerId);
   if(!player) return null;
-  const myMatches = DATA.matches.filter(m =>
+  const myMatches = matches.filter(m =>
     m.teamA.players.includes(player.id) || m.teamB.players.includes(player.id)
   );
   if(myMatches.length === 0) return { player, myMatches: [] };
 
-  const all = computeStats().filter(s=>s.played>0);
+  const all = computeStats(matches).filter(s=>s.played>0);
   const rank = all.findIndex(s => s.name.trim().toLowerCase() === player.name.trim().toLowerCase());
   const mine = all[rank];
 
@@ -818,11 +881,28 @@ async function removeTeam(id){
   renderTeamsList();
   renderTeamSelects();
 }
+async function editTeam(id){
+  if(ROLE!=='admin') return;
+  const t = DATA.teams.find(x=>x.id===id);
+  if(!t) return;
+  const newName = prompt('اسم الفريق الجديد:', t.name);
+  if(newName===null) return;
+  const clean = newName.trim();
+  if(!clean) return;
+  if(DATA.teams.some(x=>x.id!==id && x.name.trim().toLowerCase()===clean.toLowerCase())){ alert('في فريق تاني بنفس الاسم ده'); return; }
+  const oldName = t.name;
+  t.name = clean;
+  DATA.matches.forEach(m=>{
+    if(m.teamA.name===oldName) m.teamA.name = clean;
+    if(m.teamB.name===oldName) m.teamB.name = clean;
+  });
+  await pushData(); renderAll();
+}
 function renderTeamsList(){
   const el = document.getElementById('teamsList');
   if(!el) return;
   if(DATA.teams.length===0){ el.innerHTML = '<div class="empty">لسه ما فيش فرق مسجلة، ضيف أول واحد فوق.</div>'; return; }
-  el.innerHTML = DATA.teams.map(t=>`<span class="tag">${t.name} <button onclick="removeTeam('${t.id}')">×</button></span>`).join('');
+  el.innerHTML = DATA.teams.map(t=>`<span class="tag">${t.name} <button onclick="editTeam('${t.id}')" title="تعديل الاسم" style="color:var(--amber);">✎</button><button onclick="removeTeam('${t.id}')">×</button></span>`).join('');
 }
 function renderTeamSelects(){
   ['teamASelect','teamBSelect'].forEach(id=>{
@@ -854,6 +934,18 @@ async function removePlayer(id){
   DATA.players = DATA.players.filter(p=>p.id!==id);
   await pushData(); renderAll();
 }
+async function editPlayer(id){
+  if(ROLE!=='admin') return;
+  const p = DATA.players.find(x=>x.id===id);
+  if(!p) return;
+  const newName = prompt('اسم اللاعب الجديد:', p.name);
+  if(newName===null) return;
+  const clean = newName.trim();
+  if(!clean) return;
+  if(DATA.players.some(x=>x.id!==id && x.name.trim().toLowerCase()===clean.toLowerCase())){ alert('في لاعب تاني بنفس الاسم ده'); return; }
+  p.name = clean;
+  await pushData(); renderAll();
+}
 
 function renderPlayersList(){
   const el = document.getElementById('playersList');
@@ -863,7 +955,7 @@ function renderPlayersList(){
     el.innerHTML = '<div class="empty">لسه ما فيش لاعبين، ضيف أول واحد فوق.</div>';
     elViewer.innerHTML = '<div class="empty">لسه ما فيش لاعبين.</div>';
   } else {
-    el.innerHTML = DATA.players.map(p=>`<span class="tag">${p.name} <button onclick="removePlayer('${p.id}')">×</button></span>`).join('');
+    el.innerHTML = DATA.players.map(p=>`<span class="tag">${p.name} <button onclick="editPlayer('${p.id}')" title="تعديل الاسم" style="color:var(--amber);">✎</button><button onclick="removePlayer('${p.id}')">×</button></span>`).join('');
     elViewer.innerHTML = DATA.players.map(p=>`<span class="tag">${p.name}</span>`).join('');
   }
   if(viewerSection) viewerSection.style.display = 'none';
@@ -951,6 +1043,30 @@ async function removeMatch(id){
   await pushData(); renderAll();
 }
 
+let editingMatchId = null;
+function startEditMatch(id){
+  if(ROLE!=='admin') return;
+  editingMatchId = id;
+  renderMatchesTable();
+}
+function cancelEditMatch(){
+  editingMatchId = null;
+  renderMatchesTable();
+}
+async function saveEditMatch(id){
+  if(ROLE!=='admin') return;
+  const m = DATA.matches.find(x=>x.id===id);
+  if(!m) return;
+  const dateEl = document.getElementById('editDate-'+id);
+  const scoreAEl = document.getElementById('editScoreA-'+id);
+  const scoreBEl = document.getElementById('editScoreB-'+id);
+  m.date = (dateEl && dateEl.value) ? dateEl.value : m.date;
+  m.scoreA = parseInt((scoreAEl && scoreAEl.value) || 0, 10);
+  m.scoreB = parseInt((scoreBEl && scoreBEl.value) || 0, 10);
+  editingMatchId = null;
+  await pushData(); renderAll();
+}
+
 function playerName(id){
   const p = DATA.players.find(p=>p.id===id);
   return p ? p.name : '؟';
@@ -961,6 +1077,17 @@ function renderMatchesTable(){
   if(DATA.matches.length===0){ el.innerHTML = '<div class="empty">لسه ما فيش مباريات متسجلة.</div>'; return; }
   const rows = [...DATA.matches].sort((a,b)=> (a.date < b.date ? 1 : -1)).map(m=>{
     const result = m.scoreA===m.scoreB ? 'تعادل' : (m.scoreA>m.scoreB ? m.teamA.name+' فاز' : m.teamB.name+' فاز');
+    if(ROLE==='admin' && editingMatchId===m.id){
+      return `<tr>
+        <td><input type="date" id="editDate-${m.id}" value="${m.date}"></td>
+        <td>${m.mode==='1v1'?'فردي':'زوجي'}</td>
+        <td>${m.teamA.name}<br><span style="color:var(--text-dim); font-size:11.5px">${m.teamA.players.map(playerName).join('، ')}</span></td>
+        <td><input type="number" min="0" id="editScoreA-${m.id}" value="${m.scoreA}" style="width:56px; display:inline-block;"> - <input type="number" min="0" id="editScoreB-${m.id}" value="${m.scoreB}" style="width:56px; display:inline-block;"></td>
+        <td>${m.teamB.name}<br><span style="color:var(--text-dim); font-size:11.5px">${m.teamB.players.map(playerName).join('، ')}</span></td>
+        <td style="font-size:12px; color:var(--text-dim)">${result}</td>
+        <td><span class="del" style="color:var(--win)" onclick="saveEditMatch('${m.id}')">حفظ</span> · <span class="del" onclick="cancelEditMatch()">إلغاء</span></td>
+      </tr>`;
+    }
     return `<tr>
       <td>${m.date}</td>
       <td>${m.mode==='1v1'?'فردي':'زوجي'}</td>
@@ -968,7 +1095,7 @@ function renderMatchesTable(){
       <td class="score-pill">${m.scoreA} - ${m.scoreB}</td>
       <td>${m.teamB.name}<br><span style="color:var(--text-dim); font-size:11.5px">${m.teamB.players.map(playerName).join('، ')}</span></td>
       <td style="font-size:12px; color:var(--text-dim)">${result}</td>
-      <td>${ROLE==='admin' ? `<span class="del" onclick="removeMatch('${m.id}')">حذف</span>` : ''}</td>
+      <td>${ROLE==='admin' ? `<span class="del" onclick="startEditMatch('${m.id}')">تصحيح</span> · <span class="del" onclick="removeMatch('${m.id}')">حذف</span>` : ''}</td>
     </tr>`;
   }).join('');
   el.innerHTML = `<table><thead><tr>
@@ -976,10 +1103,11 @@ function renderMatchesTable(){
   </tr></thead><tbody>${rows}</tbody></table>`;
 }
 
-function computeStats(){
+function computeStats(matches){
+  matches = matches || DATA.matches;
   const stats = {};
   DATA.players.forEach(p=> stats[p.id] = {name:p.name, played:0, win:0, draw:0, loss:0, gf:0, ga:0});
-  DATA.matches.forEach(m=>{
+  matches.forEach(m=>{
     const aWin = m.scoreA > m.scoreB, bWin = m.scoreB > m.scoreA, draw = m.scoreA === m.scoreB;
     m.teamA.players.forEach(pid=>{
       if(!stats[pid]) return;
@@ -997,9 +1125,10 @@ function computeStats(){
   })).sort((a,b)=> b.points - a.points || b.winRate - a.winRate || b.gf - a.gf);
 }
 
-function computeTeamStats(){
+function computeTeamStats(matches){
+  matches = matches || DATA.matches;
   const stats = {};
-  DATA.matches.forEach(m=>{
+  matches.forEach(m=>{
     const sides = [
       { name:m.teamA.name, gf:m.scoreA, ga:m.scoreB, players:m.teamA.players },
       { name:m.teamB.name, gf:m.scoreB, ga:m.scoreA, players:m.teamB.players }
@@ -1027,33 +1156,94 @@ function computeTeamStats(){
   }).sort((a,b)=> b.points - a.points || b.winRate - a.winRate || b.gf - a.gf);
 }
 
-function renderTeamAnalysis(){
-  const el = document.getElementById('teamAnalysisWrap');
-  if(!el) return;
-  const stats = computeTeamStats().filter(s=>s.played>0);
-  if(stats.length===0){ el.innerHTML = '<div class="empty">لسه ما فيش فرق سجلت مباريات.</div>'; return; }
-  el.innerHTML = stats.map((s,i)=>{
-    const bl = s.bestLineup;
-    const blNames = bl ? bl.players.map(playerName).join('، ') : '';
-    return `
-    <div class="analysis-card ${i===0?'top':''}">
+function renderSingleTeamAnalysis(teamName, matches){
+  const el = document.getElementById('analysisWrap');
+  const s = computeTeamStats(matches).find(t=>t.name===teamName);
+  if(!s || s.played===0){ el.innerHTML = '<div class="empty">الفريق ده لسه ملوش مباريات في الفترة دي.</div>'; return; }
+  const bl = s.bestLineup;
+  const blNames = bl ? bl.players.map(playerName).join('، ') : '';
+  el.innerHTML = `
+    <div class="analysis-card top">
       <div>
-        <div class="p-name">${i===0?'👑 ':''}${i+1}. ${s.name}</div>
+        <div class="p-name">🏆 ${s.name}</div>
         <div class="p-stats">${s.played} مباراة · ${s.win} فوز · ${s.draw} تعادل · ${s.loss} خسارة · أهداف ${s.gf}-${s.ga}</div>
         ${bl ? `<div class="p-stats" style="margin-top:4px;">🔥 أكتر تشكيلة كسبت مع الفريق: ${blNames} (${bl.win} فوز من ${bl.played})</div>` : ''}
       </div>
       <div style="text-align:left">
-        <div class="score-pill ${i===0?'rank1':''}">${s.points} نقطة</div>
+        <div class="score-pill rank1">${s.points} نقطة</div>
         <div class="p-stats">${s.winRate}% فوز</div>
       </div>
     </div>`;
-  }).join('');
+}
+
+function getFilteredMatches(){
+  const fromEl = document.getElementById('analysisFrom');
+  const toEl = document.getElementById('analysisTo');
+  const from = fromEl ? fromEl.value : '';
+  const to = toEl ? toEl.value : '';
+  return DATA.matches.filter(m=>{
+    if(from && m.date < from) return false;
+    if(to && m.date > to) return false;
+    return true;
+  });
+}
+
+function renderAnalysisFilterOptions(){
+  const typeSel = document.getElementById('analysisFilterType');
+  if(!typeSel) return;
+  const type = typeSel.value;
+  const valSel = document.getElementById('analysisFilterValue');
+  const wrap = document.getElementById('analysisFilterValueWrap');
+  const prev = valSel.value;
+  if(type==='player'){
+    wrap.classList.remove('hidden');
+    valSel.innerHTML = DATA.players.map(p=>`<option value="${p.id}">${p.name}</option>`).join('');
+  } else if(type==='team'){
+    wrap.classList.remove('hidden');
+    valSel.innerHTML = DATA.teams.map(t=>`<option value="${t.name}">${t.name}</option>`).join('');
+  } else {
+    wrap.classList.add('hidden');
+    valSel.innerHTML = '';
+  }
+  if(prev && [...valSel.options].some(o=>o.value===prev)) valSel.value = prev;
+}
+
+function onAnalysisFilterTypeChange(){
+  renderAnalysisFilterOptions();
+  renderAnalysis();
 }
 
 function renderAnalysis(){
   const el = document.getElementById('analysisWrap');
-  const stats = computeStats().filter(s=>s.played>0);
-  if(stats.length===0){ el.innerHTML = '<div class="empty">سجّل مباريات الأول عشان يظهر التحليل.</div>'; return; }
+  const podiumEl = document.getElementById('podium');
+  const typeSel = document.getElementById('analysisFilterType');
+  const type = typeSel ? typeSel.value : 'all';
+  const filtered = getFilteredMatches();
+
+  if(type === 'player'){
+    if(podiumEl) podiumEl.innerHTML = '';
+    if(statsChart){ statsChart.destroy(); statsChart = null; }
+    const pid = document.getElementById('analysisFilterValue').value;
+    if(!pid){ el.innerHTML = '<div class="empty">اختار لاعب من القائمة فوق.</div>'; return; }
+    const detail = computePlayerDetail(pid, filtered);
+    el.innerHTML = detail ? playerDetailHtml(detail, '👤 تحليل اللاعب') : '<div class="empty">مفيش بيانات لهذا اللاعب.</div>';
+    return;
+  }
+  if(type === 'team'){
+    if(podiumEl) podiumEl.innerHTML = '';
+    if(statsChart){ statsChart.destroy(); statsChart = null; }
+    const teamName = document.getElementById('analysisFilterValue').value;
+    if(!teamName){ el.innerHTML = '<div class="empty">اختار فريق من القائمة فوق.</div>'; return; }
+    renderSingleTeamAnalysis(teamName, filtered);
+    return;
+  }
+
+  const stats = computeStats(filtered).filter(s=>s.played>0);
+  if(stats.length===0){
+    el.innerHTML = '<div class="empty">سجّل مباريات في الفترة دي عشان يظهر التحليل.</div>';
+    renderPodium(filtered); renderChart(filtered);
+    return;
+  }
   el.innerHTML = stats.map((s,i)=>`
     <div class="analysis-card ${i===0?'top':''}">
       <div>
@@ -1066,6 +1256,8 @@ function renderAnalysis(){
       </div>
     </div>
   `).join('');
+  renderPodium(filtered);
+  renderChart(filtered);
 }
 
 function renderHero(){
@@ -1083,8 +1275,8 @@ function renderHero(){
 }
 
 
-function renderPodium(){
- const stats=computeStats().filter(s=>s.played>0).slice(0,3);
+function renderPodium(matches){
+ const stats=computeStats(matches).filter(s=>s.played>0).slice(0,3);
  const el=document.getElementById('podium');
  if(!el)return;
  el.className='podium';
@@ -1095,10 +1287,10 @@ function renderPodium(){
  <div class="podium-points">${s.points} نقطة</div></div>`).join('');
 }
 let statsChart;
-function renderChart(){
+function renderChart(matches){
  const c=document.getElementById('statsChart');
  if(!c || typeof Chart==='undefined') return;
- const stats=computeStats().filter(s=>s.played>0);
+ const stats=computeStats(matches).filter(s=>s.played>0);
  if(statsChart) statsChart.destroy();
  statsChart=new Chart(c,{
    type:'bar',
@@ -1112,10 +1304,10 @@ function renderAll(){
   renderTeamPickers();
   renderTeamSelects();
   renderMatchesTable();
+  renderAnalysisFilterOptions();
   renderAnalysis();
-  renderTeamAnalysis();
   renderPrintPlayerSelect();
-  renderHero(); renderPodium(); renderChart();
+  renderHero();
   renderMyStats();
   if(ROLE==='admin'){ renderUsersList(); renderPendingList(); renderTeamsList(); renderAnnouncementsList(); }
 }

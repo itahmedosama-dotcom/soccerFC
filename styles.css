@@ -226,8 +226,24 @@ padding:18px;border-radius:16px;min-width:140px;text-align:center;
   #printSinglePlayerArea{ display:none; }
   body.print-single-player #appWrap > *{ display:none !important; }
   body.print-single-player #printSinglePlayerArea{ display:block !important; }
-  body.print-analysis-only #appWrap > *:not(#analysisSection):not(#teamAnalysisSection){ display:none !important; }
+  body.print-analysis-only #appWrap > *:not(#analysisSection){ display:none !important; }
 }
+
+.captcha-box{
+  user-select:none;
+  font-family:'Space Mono', monospace;
+  font-weight:700;
+  font-size:19px;
+  letter-spacing:5px;
+  background:repeating-linear-gradient(45deg, rgba(255,255,255,0.05) 0 4px, transparent 4px 8px), #0d2015;
+  border:1px dashed var(--line);
+  border-radius:8px;
+  padding:8px 14px;
+  color:var(--gold);
+  flex:1;
+  text-align:center;
+}
+.filter-bar{ align-items:flex-end; }
 
 .whatsapp-fab{
   position:fixed;
