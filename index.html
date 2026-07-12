@@ -800,6 +800,7 @@ function logout(auto){
   const aiFab = document.getElementById('aiChatFab');
   if(aiFab) aiFab.classList.add('hidden');
   toggleAiChat(false);
+  resetAiChat_();
   document.getElementById('loginUsername').value='';
   document.getElementById('loginPassword').value='';
   showLogin();
@@ -1918,6 +1919,15 @@ function toggleAiChat(force){
   }
 }
 
+// بيصفّر محادثة الذكاء الاصطناعي، بتتنادى عند تسجيل الخروج عشان أي حد يدخل بعده يبدأ من الصفر
+function resetAiChat_(){
+  aiChatHistory = [];
+  const wrap = document.getElementById('aiChatMessages');
+  if(wrap){
+    wrap.innerHTML = '<div class="ai-chat-msg ai">أهلاً 👋 أنا مساعدك للتحليلات. اسألني أي سؤال عن ترتيب اللاعبين، النتايج، أو أي تعليق عايز رأيي فيه. وتقدر كمان تطلب مني صورة من التحليلات وهبعتهالك جاهزة للتحميل 📷</div>';
+  }
+}
+
 function buildAiChatContext_(){
   const matches = (typeof DATA !== 'undefined' && DATA.matches) ? DATA.matches : [];
   if(!matches.length) return 'مفيش مباريات متسجلة لسه.';
@@ -1944,6 +1954,99 @@ function appendAiChatMsg_(text, cls){
   return el;
 }
 
+// بيرسم صورة PNG لترتيب اللاعبين الحالي (زي صورة ملخص الفترة بس مباشرة من غير ما يتكتب ملخص الأول)
+function buildAnalyticsSnapshotBlob_(){
+  return new Promise(async (resolve)=>{
+    const matches = (typeof DATA !== 'undefined' && DATA.matches) ? DATA.matches : [];
+    const stats = computeStats(matches).filter(s=>s.played>0).slice(0, 10);
+    if(!stats.length){ resolve(null); return; }
+    if(document.fonts && document.fonts.ready){ try{ await document.fonts.ready; }catch(e){} }
+
+    const W = 720, PAD = 36;
+    const titleFont = '700 28px Cairo, sans-serif';
+    const subFont = '600 16px Cairo, sans-serif';
+    const statFont = '600 17px Cairo, sans-serif';
+
+    const statLines = stats.map((s,i)=> `${i+1}. ${s.name} — ${s.played} م · ${s.win} ف · ${s.draw} ت · ${s.loss} خ · أهداف ${s.gf}-${s.ga} · ${s.points} نقطة`);
+    const rowH = { sub:24, title:44, gap:26, stat:28 };
+    let H = PAD + rowH.sub + rowH.title + rowH.gap + (statLines.length * rowH.stat) + PAD;
+
+    const scale = 2;
+    const canvas = document.createElement('canvas');
+    canvas.width = W*scale; canvas.height = H*scale;
+    const ctx = canvas.getContext('2d');
+    ctx.scale(scale, scale);
+    ctx.direction = 'rtl';
+    ctx.textAlign = 'right';
+
+    const grad = ctx.createLinearGradient(0,0,0,H);
+    grad.addColorStop(0, '#123522');
+    grad.addColorStop(1, '#07130d');
+    ctx.fillStyle = grad;
+    ctx.fillRect(0,0,W,H);
+    ctx.strokeStyle = 'rgba(212,175,85,0.4)';
+    ctx.lineWidth = 2;
+    ctx.strokeRect(6,6,W-12,H-12);
+
+    const rightX = W - PAD;
+    let cy = PAD;
+
+    cy += rowH.sub - 6;
+    ctx.fillStyle = '#d9a94a';
+    ctx.font = subFont;
+    ctx.fillText('FC · دوري بيت الشباب', rightX, cy);
+
+    cy += rowH.title - 12;
+    ctx.fillStyle = '#f6f1e2';
+    ctx.font = titleFont;
+    ctx.fillText('📊 ترتيب اللاعبين', rightX, cy);
+
+    cy += rowH.gap - 12;
+    ctx.strokeStyle = 'rgba(255,255,255,0.18)';
+    ctx.beginPath(); ctx.moveTo(PAD, cy); ctx.lineTo(W-PAD, cy); ctx.stroke();
+
+    ctx.font = statFont;
+    statLines.forEach((line, idx)=>{
+      cy += rowH.stat;
+      ctx.fillStyle = idx===0 ? '#ffd166' : '#d8ecdf';
+      ctx.fillText(line, rightX, cy);
+    });
+
+    canvas.toBlob((blob)=> resolve(blob), 'image/png');
+  });
+}
+
+// بيضيف صورة جوه الشات مع زرار تحميل
+function appendAiChatImageMsg_(blob, filename){
+  const wrap = document.getElementById('aiChatMessages');
+  if(!wrap || !blob) return;
+  const url = URL.createObjectURL(blob);
+  const el = document.createElement('div');
+  el.className = 'ai-chat-msg ai ai-chat-img-msg';
+  const img = document.createElement('img');
+  img.src = url; img.alt = 'صورة التحليلات'; img.className = 'ai-chat-img';
+  const dlBtn = document.createElement('button');
+  dlBtn.type = 'button'; dlBtn.className = 'ai-chat-img-download'; dlBtn.textContent = '⬇️ تحميل الصورة';
+  dlBtn.onclick = ()=> downloadBlob_(blob, filename || 'تحليلات-دوري-الأصحاب.png');
+  el.appendChild(img); el.appendChild(dlBtn);
+  wrap.appendChild(el);
+  wrap.scrollTop = wrap.scrollHeight;
+}
+
+// زرار مخصوص جوه الشات يطلب صورة التحليلات مباشرة
+async function sendAiChatImageRequest(){
+  appendAiChatMsg_('📷 ابعتلي صورة من التحليلات', 'user');
+  const typingEl = appendAiChatMsg_('بجهز الصورة...', 'ai typing');
+  const blob = await buildAnalyticsSnapshotBlob_();
+  if(typingEl) typingEl.remove();
+  if(!blob){
+    appendAiChatMsg_('لسه مفيش بيانات كفاية عشان أعمل صورة، سجل شوية مباريات الأول.', 'ai error');
+    return;
+  }
+  appendAiChatMsg_('اتفضل صورة ترتيب اللاعبين، دوس تحميل عشان تحفظها 👇', 'ai');
+  appendAiChatImageMsg_(blob, 'تحليلات-دوري-الأصحاب.png');
+}
+
 async function sendAiChatMessage(){
   const input = document.getElementById('aiChatInput');
   const sendBtn = document.getElementById('aiChatSendBtn');
@@ -1967,6 +2070,10 @@ async function sendAiChatMessage(){
       appendAiChatMsg_(json.answer, 'ai');
       aiChatHistory.push({role:'user', text:question});
       aiChatHistory.push({role:'ai', text:json.answer});
+      if(/صور[ةه]?|photo|image/i.test(question)){
+        const imgBlob = await buildAnalyticsSnapshotBlob_();
+        if(imgBlob) appendAiChatImageMsg_(imgBlob, 'تحليلات-دوري-الأصحاب.png');
+      }
     } else {
       appendAiChatMsg_('معرفش أرد دلوقتي.' + (json && json.error ? (' (' + json.error + ')') : ' حاول تاني بعد شوية.'), 'ai error');
     }
@@ -2288,13 +2395,14 @@ init();
       </svg>
       مساعد التحليلات الذكي
     </div>
-    <button type="button" class="ai-chat-close" onclick="toggleAiChat(false)" aria-label="إغلاق">✕</button>
+    <button type="button" class="ai-chat-close" onclick="toggleAiChat(false)" aria-label="تصغير الشات" title="تصغير - المحادثة هتفضل محفوظة">‒</button>
   </div>
   <div id="aiChatMessages" class="ai-chat-messages">
-    <div class="ai-chat-msg ai">أهلاً 👋 أنا مساعدك للتحليلات. اسألني أي سؤال عن ترتيب اللاعبين، النتايج، أو أي تعليق عايز رأيي فيه.</div>
+    <div class="ai-chat-msg ai">أهلاً 👋 أنا مساعدك للتحليلات. اسألني أي سؤال عن ترتيب اللاعبين، النتايج، أو أي تعليق عايز رأيي فيه. وتقدر كمان تطلب مني صورة من التحليلات وهبعتهالك جاهزة للتحميل 📷</div>
   </div>
   <div class="ai-chat-hint" id="aiChatHint"></div>
   <div class="ai-chat-input-row">
+    <button type="button" onclick="sendAiChatImageRequest()" id="aiChatImgBtn" class="ai-chat-img-btn" aria-label="اطلب صورة من التحليلات" title="ابعتلي صورة من التحليلات">🖼️</button>
     <input id="aiChatInput" type="text" placeholder="اكتب سؤالك عن التحليلات..." onkeydown="if(event.key==='Enter'){sendAiChatMessage();}">
     <button type="button" onclick="sendAiChatMessage()" id="aiChatSendBtn" aria-label="إرسال">➤</button>
   </div>
