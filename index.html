@@ -1910,9 +1910,11 @@ let aiChatOpen = false;
 
 function toggleAiChat(force){
   const panel = document.getElementById('aiChatPanel');
+  const fabWrap = document.getElementById('aiChatFabWrap');
   if(!panel) return;
   aiChatOpen = (typeof force === 'boolean') ? force : !aiChatOpen;
   panel.classList.toggle('hidden', !aiChatOpen);
+  if(fabWrap) fabWrap.classList.toggle('panel-open', aiChatOpen);
   if(aiChatOpen){
     const input = document.getElementById('aiChatInput');
     if(input) setTimeout(()=>input.focus(), 50);
