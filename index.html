@@ -15,7 +15,7 @@
   <div id="announcementBannerLogin" class="announcement-bar hidden"></div>
   <div class="eyebrow">FC · دوري بيت الشباب</div>
   <h1 id="gateTitle">جاري التحميل</h1>
-  <div class="sub" id="gateSub">بنجيب البيانات من الصبر مفتاح الفرج...</div>
+  <div class="sub" id="gateSub">بنجيب البيانات الصبر مفتاح الفرج...</div>
   <div class="spinner" id="gateSpinner"></div>
 
   <div id="bootstrapForm" class="login-form hidden">
@@ -41,7 +41,7 @@
         <button type="button" class="ghost" onclick="copyCaptcha('login')" title="انسخ الكود">📋</button>
         <button type="button" class="ghost" onclick="generateCaptcha('login')" title="كود جديد">🔄</button>
       </div>
-      <input id="loginCaptchaInput" placeholder="اكتب الكود هنا أو دوس انسخ" style="margin-top:6px;" onkeydown="if(event.key==='Enter'){doLogin();}">
+      <input id="loginCaptchaInput" dir="ltr" style="margin-top:6px; direction:ltr; text-align:left;" placeholder="اكتب الكود هنا أو دوس انسخ" onkeydown="if(event.key==='Enter'){doLogin();}">
     </div>
     <div class="login-err" id="loginErr">اليوزر أو الباسورد غلط</div>
     <div style="margin-top:14px;"><button style="width:100%" onclick="doLogin()">دخول</button></div>
@@ -65,7 +65,7 @@
         <button type="button" class="ghost" onclick="copyCaptcha('su')" title="انسخ الكود">📋</button>
         <button type="button" class="ghost" onclick="generateCaptcha('su')" title="كود جديد">🔄</button>
       </div>
-      <input id="suCaptchaInput" placeholder="اكتب الكود هنا أو دوس انسخ" style="margin-top:6px;" onkeydown="if(event.key==='Enter'){signup();}">
+      <input id="suCaptchaInput" dir="ltr" style="margin-top:6px; direction:ltr; text-align:left;" placeholder="اكتب الكود هنا أو دوس انسخ" onkeydown="if(event.key==='Enter'){signup();}">
     </div>
     <div class="login-err" id="suErr">لازم تملأ كل الحقول</div>
     <div style="margin-top:14px;"><button style="width:100%" onclick="signup()">إرسال طلب الانضمام</button></div>
@@ -88,7 +88,7 @@
     <div class="eyebrow">FC · دوري بيت الشباب</div>
     <h1>سجل مباريات الأصحاب</h1>
     <div class="sub">كل المباريات، كل النتايج، وتحليل مين أحسن لاعب في الجروب — متزامن مع Google Sheets.</div>
-    <div style="margin-top:14px;"><span class="badge-role" id="roleBadge"></span></div>
+    <div style="margin-top:14px;"><span class="badge-role" id="roleBadge"></span> <span class="badge-role hidden" id="sessionTimer" style="background:rgba(255,255,255,0.06);"></span></div>
     <div class="champion-strip" id="heroStats"></div>
   </div>
 
@@ -264,6 +264,65 @@ let ROLE = null;       // 'admin' | 'viewer'
 let CURRENT_USER = null;
 let DATA = { users: [], players: [], teams: [], matches: [], announcements: [] };
 
+// ====== الجلسة: فضل داخل بعد الريفريش + قفل تلقائي لما مفيش حركة ======
+const SESSION_KEY = 'fcSession';
+const INACTIVITY_LIMIT_MS = 10 * 60 * 1000; // 10 دقايق
+let lastActivityAt = Date.now();
+let lastPersistedActivityAt = 0;
+let inactivityInterval = null;
+
+function saveSession(userId){
+  try{ localStorage.setItem(SESSION_KEY, JSON.stringify({ userId, lastActivity: Date.now() })); }catch(e){}
+}
+function clearSession(){
+  try{ localStorage.removeItem(SESSION_KEY); }catch(e){}
+}
+function loadSession(){
+  try{
+    const raw = localStorage.getItem(SESSION_KEY);
+    return raw ? JSON.parse(raw) : null;
+  }catch(e){ return null; }
+}
+function touchActivity(){
+  lastActivityAt = Date.now();
+  if(CURRENT_USER && (lastActivityAt - lastPersistedActivityAt > 3000)){
+    lastPersistedActivityAt = lastActivityAt;
+    saveSession(CURRENT_USER.id);
+  }
+}
+['click','keydown','mousemove','scroll','touchstart'].forEach(evt=>{
+  window.addEventListener(evt, touchActivity, {passive:true});
+});
+function startInactivityWatch(){
+  stopInactivityWatch();
+  updateSessionTimerUI();
+  inactivityInterval = setInterval(()=>{
+    const remaining = INACTIVITY_LIMIT_MS - (Date.now() - lastActivityAt);
+    if(remaining <= 0){
+      stopInactivityWatch();
+      logout(true);
+      return;
+    }
+    updateSessionTimerUI(remaining);
+  }, 1000);
+}
+function stopInactivityWatch(){
+  if(inactivityInterval){ clearInterval(inactivityInterval); inactivityInterval = null; }
+  const el = document.getElementById('sessionTimer');
+  if(el) el.classList.add('hidden');
+}
+function updateSessionTimerUI(remainingArg){
+  const el = document.getElementById('sessionTimer');
+  if(!el) return;
+  const remaining = remainingArg!=null ? remainingArg : (INACTIVITY_LIMIT_MS - (Date.now()-lastActivityAt));
+  const totalSec = Math.max(0, Math.ceil(remaining/1000));
+  const m = Math.floor(totalSec/60);
+  const s = totalSec % 60;
+  el.textContent = `⏳ هتخرج تلقائي لو مفيش حركة خلال ${m}:${s<10?'0':''}${s}`;
+  el.classList.remove('hidden');
+}
+// ====== نهاية جزء الجلسة ======
+
 function normUsername(u){ return (u||'').trim().toLowerCase(); }
 function usernameTaken(username, excludeId){
   return DATA.users.some(u => normUsername(u.username) === normUsername(username) && u.id !== excludeId);
@@ -382,6 +441,22 @@ async function init(){
   document.getElementById('gateSpinner').classList.add('hidden');
   if(expireAnnouncements()) pushData();
   renderAnnouncement();
+
+  // لو فيه جلسة محفوظة ولسه في وقتها، ادخل على طول من غير ما تطلب لوجين تاني
+  const session = loadSession();
+  if(session && session.userId){
+    const idle = Date.now() - (session.lastActivity || 0);
+    if(idle < INACTIVITY_LIMIT_MS){
+      const savedUser = DATA.users.find(u=>u.id===session.userId);
+      if(savedUser && savedUser.status !== 'pending'){
+        lastActivityAt = session.lastActivity || Date.now();
+        enterApp(savedUser);
+        return;
+      }
+    }
+    clearSession();
+  }
+
   if(DATA.users.length === 0){
     document.getElementById('gateTitle').textContent = 'أهلاً بيك';
     document.getElementById('gateSub').textContent = 'أول خطوة: اعمل حساب الأدمن.';
@@ -403,12 +478,7 @@ function generateCaptcha(prefix){
   CAPTCHA[prefix] = code;
   const el = document.getElementById(prefix+'CaptchaCode');
   if(el){
-    el.innerHTML = code.split('').map(ch=>{
-      // ميلان بسيط بس عشان يفضل واضح للقراءة
-      const rot = (Math.random()*12-6).toFixed(0);
-      const ty = (Math.random()*4-2).toFixed(0);
-      return `<span style="display:inline-block; transform:rotate(${rot}deg) translateY(${ty}px);">${ch}</span>`;
-    }).join('');
+    el.textContent = code.split('').join(' ');
   }
   const input = document.getElementById(prefix+'CaptchaInput');
   if(input) input.value = '';
@@ -576,15 +646,23 @@ function enterApp(user){
   renderMyStats();
   renderAnnouncement();
   playCheer();
+  saveSession(user.id);
+  startInactivityWatch();
 }
 
-function logout(){
+function logout(auto){
+  stopInactivityWatch();
+  clearSession();
   ROLE = null; CURRENT_USER = null;
   document.getElementById('appWrap').classList.add('hidden');
   document.getElementById('loginGate').classList.remove('hidden');
   document.getElementById('loginUsername').value='';
   document.getElementById('loginPassword').value='';
   showLogin();
+  if(auto === true){
+    const sub = document.getElementById('gateSub');
+    if(sub) sub.textContent = '⏳ سجّلنا خروجك تلقائيًا لأنه مفيش أي حركة لمدة 10 دقايق. سجل دخول تاني.';
+  }
 }
 
 function applyRole(){
