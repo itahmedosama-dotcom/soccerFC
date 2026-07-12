@@ -183,6 +183,7 @@
       <div class="ai-summary-text" id="aiSummaryText"></div>
       <button class="ghost" onclick="copyAISummary()">📋 انسخ للواتساب</button>
       <button class="ghost" onclick="shareAISummaryAsImage()">📤 شير كصورة</button>
+      <button class="ghost" onclick="downloadAISummaryImage()">⬇️ تحميل الصورة</button>
     </div>
     <div class="print-bar no-print">
       <button class="ghost" onclick="printFullPage()">🖨️ طباعة الصفحة كلها</button>
@@ -263,7 +264,7 @@ const SHEET_API_URL = "https://script.google.com/macros/s/AKfycbxn7KnZSOFtip3tEO
 
 let ROLE = null;       // 'admin' | 'viewer'
 let CURRENT_USER = null;
-let DATA = { users: [], players: [], teams: [], matches: [], announcements: [] };
+let DATA = { users: [], players: [], teams: [], matches: [], announcements: [], comments: [] };
 
 // ====== الجلسة: فضل داخل بعد الريفريش + قفل تلقائي لما مفيش حركة ======
 const SESSION_KEY = 'fcSession';
@@ -370,6 +371,10 @@ async function fetchData(){
   DATA.announcements = (json.announcements || []).map(a=>({
     id:a.id, text:a.text||'', active: a.active===true||a.active==='true',
     expiresAt:a.expiresAt||'', createdAt:a.createdAt||''
+  }));
+  DATA.comments = (json.comments || []).map(c=>({
+    id:c.id, matchId:c.matchId, userId:c.userId, userName:c.userName||'',
+    text:c.text||'', createdAt:c.createdAt||''
   }));
 }
 
@@ -672,7 +677,7 @@ function applyRole(){
   badge.textContent = (ROLE==='admin' ? '🛡️ أدمن' : '👁️ مشاهد') + ' · ' + CURRENT_USER.name;
 
   const matchesSection = document.getElementById('matchesSection');
-  if(matchesSection) matchesSection.style.display = ROLE==='admin' ? '' : 'none';
+  if(matchesSection) matchesSection.style.display = '';
 }
 
 function toggleSettings(){
@@ -1143,6 +1148,7 @@ async function addMatch(){
 }
 async function removeMatch(id){
   DATA.matches = DATA.matches.filter(m=>m.id!==id);
+  DATA.comments = DATA.comments.filter(c=>c.matchId!==id);
   await pushData(); renderAll();
 }
 
@@ -1223,11 +1229,86 @@ function renderMatchesTable(){
       <td>${m.teamB.name}<br><span style="color:var(--text-dim); font-size:11.5px">${m.teamB.players.map(playerName).join('، ')}</span></td>
       <td style="font-size:12px; color:var(--text-dim)">${result}${m.aiComment ? `<br><span style="color:var(--gold); font-size:11.5px;">🤖 ${m.aiComment}</span>` : ''}</td>
       <td>${ROLE==='admin' ? `<span class="del" onclick="startEditMatch('${m.id}')">تصحيح</span> · <span class="del" onclick="removeMatch('${m.id}')">حذف</span>` : ''}</td>
-    </tr>`;
+    </tr>
+    <tr class="comments-row"><td colspan="7">${renderCommentsHtml(m.id)}</td></tr>`;
   }).join('');
   el.innerHTML = `<table><thead><tr>
     <th>التاريخ</th><th>النوع</th><th>فريق A</th><th>النتيجة</th><th>فريق B</th><th>النتيجة</th><th></th>
   </tr></thead><tbody>${rows}</tbody></table>`;
+}
+
+function escapeHtml_(str){
+  return String(str||'').replace(/[&<>"']/g, ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
+}
+
+let editingCommentId = null;
+
+function renderCommentsHtml(matchId){
+  const comments = DATA.comments.filter(c=>c.matchId===matchId).sort((a,b)=> (a.createdAt < b.createdAt ? -1 : 1));
+  const list = comments.length ? comments.map(c=>{
+    if(ROLE==='admin' && editingCommentId===c.id){
+      return `<div class="comment-item">
+        <textarea id="editComment-${c.id}" style="width:100%; min-height:50px;">${escapeHtml_(c.text)}</textarea>
+        <div class="comment-actions"><span class="del" style="color:var(--win)" onclick="saveEditComment('${c.id}')">حفظ</span> · <span class="del" onclick="cancelEditComment()">إلغاء</span></div>
+      </div>`;
+    }
+    return `<div class="comment-item">
+      <div class="comment-head"><span class="comment-name">${escapeHtml_(c.userName)}</span><span class="comment-meta">${formatDateTime(c.createdAt)}</span></div>
+      <div class="comment-text">${escapeHtml_(c.text)}</div>
+      ${ROLE==='admin' ? `<div class="comment-actions"><span class="del" onclick="startEditComment('${c.id}')">تعديل</span> · <span class="del" onclick="deleteComment('${c.id}')">حذف</span></div>` : ''}
+    </div>`;
+  }).join('') : `<div class="empty">لسه مفيش تعليقات على المباراة دي.</div>`;
+
+  return `<div class="comments-block">
+    <div class="comments-title">💬 التعليقات</div>
+    ${list}
+    <div class="comment-form no-print">
+      <input id="commentInput-${matchId}" placeholder="اكتب تعليقك على المباراة دي..." onkeydown="if(event.key==='Enter'){addComment('${matchId}');}">
+      <button class="ghost" onclick="addComment('${matchId}')">إرسال</button>
+    </div>
+  </div>`;
+}
+
+async function addComment(matchId){
+  const input = document.getElementById('commentInput-'+matchId);
+  const text = input ? input.value.trim() : '';
+  if(!text) return;
+  DATA.comments.push({
+    id: uid(), matchId, userId: CURRENT_USER.id, userName: CURRENT_USER.name,
+    text, createdAt: new Date().toISOString()
+  });
+  if(input) input.value = '';
+  await pushData();
+  renderMatchesTable();
+}
+
+function startEditComment(id){
+  if(ROLE!=='admin') return;
+  editingCommentId = id;
+  renderMatchesTable();
+}
+function cancelEditComment(){
+  editingCommentId = null;
+  renderMatchesTable();
+}
+async function saveEditComment(id){
+  if(ROLE!=='admin') return;
+  const c = DATA.comments.find(x=>x.id===id);
+  if(!c) return;
+  const ta = document.getElementById('editComment-'+id);
+  const val = ta ? ta.value.trim() : '';
+  if(!val) return;
+  c.text = val;
+  editingCommentId = null;
+  await pushData();
+  renderMatchesTable();
+}
+async function deleteComment(id){
+  if(ROLE!=='admin') return;
+  if(!confirm('متأكد إنك عايز تمسح التعليق ده؟')) return;
+  DATA.comments = DATA.comments.filter(c=>c.id!==id);
+  await pushData();
+  renderMatchesTable();
 }
 
 function computeStats(matches){
@@ -1399,10 +1480,11 @@ function wrapCanvasText_(ctx, text, maxWidth, font){
   return lines;
 }
 
-async function shareAISummaryAsImage(){
+function buildSummaryImageBlob_(){
+  return new Promise(async (resolve)=>{
   const textEl = document.getElementById('aiSummaryText');
   const summaryText = textEl ? textEl.textContent : '';
-  if(!summaryText){ alert('اعمل الملخص الأول قبل ما تشيره.'); return; }
+  if(!summaryText){ resolve(null); return; }
   const stats = LAST_SUMMARY_STATS || [];
 
   if(document.fonts && document.fonts.ready){ try{ await document.fonts.ready; }catch(e){} }
@@ -1474,22 +1556,39 @@ async function shareAISummaryAsImage(){
     ctx.fillText(line, rightX, cy);
   });
 
-  canvas.toBlob(async (blob)=>{
-    if(!blob){ alert('معرفش أعمل الصورة، حاول تاني.'); return; }
-    const file = new File([blob], 'ملخص-الفترة.png', { type:'image/png' });
-    if(navigator.canShare && navigator.canShare({files:[file]})){
-      try{
-        await navigator.share({ files:[file], title:'ملخص الفترة', text:'ملخص فترة دوري بيت الشباب ⚽' });
-        return;
-      }catch(e){ /* المستخدم لغى المشاركة، هنكمل بالتحميل */ }
-    }
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url; a.download = 'ملخص-الفترة.png';
-    document.body.appendChild(a); a.click(); document.body.removeChild(a);
-    setTimeout(()=>URL.revokeObjectURL(url), 3000);
-    alert('اتنزلت الصورة ✅ افتحها من المعرض وابعتها في الواتساب.');
-  }, 'image/png');
+  canvas.toBlob((blob)=> resolve(blob), 'image/png');
+  });
+}
+
+function downloadBlob_(blob, filename){
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = filename;
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  setTimeout(()=>URL.revokeObjectURL(url), 3000);
+}
+
+async function shareAISummaryAsImage(){
+  const blob = await buildSummaryImageBlob_();
+  if(!blob){ alert('اعمل الملخص الأول قبل ما تشيره.'); return; }
+  const file = new File([blob], 'ملخص-الفترة.png', { type:'image/png' });
+  if(navigator.canShare && navigator.canShare({files:[file]})){
+    try{
+      await navigator.share({ files:[file], title:'ملخص الفترة', text:'ملخص فترة دوري بيت الشباب ⚽' });
+      return;
+    }catch(e){ /* المستخدم لغى المشاركة، هنكمل بالتحميل */ }
+  }
+  downloadBlob_(blob, 'ملخص-الفترة.png');
+  alert('اتنزلت الصورة ✅ افتحها من المعرض وابعتها في الواتساب.');
+}
+
+// دالة مخصوصة لتحميل الصورة مباشرة، من غير ما تحاول تفتح شاشة المشاركة —
+// مفيدة جدًا على الديسكتوب لأن بعض المتصفحات بتفتح نافذة شير مالهاش لازمة بدل التحميل المباشر.
+async function downloadAISummaryImage(){
+  const blob = await buildSummaryImageBlob_();
+  if(!blob){ alert('اعمل الملخص الأول قبل ما تنزّله.'); return; }
+  downloadBlob_(blob, 'ملخص-الفترة.png');
+  alert('اتنزلت الصورة ✅ تقدر تلاقيها في مجلد التحميلات (Downloads).');
 }
 
 function renderAnalysis(){
