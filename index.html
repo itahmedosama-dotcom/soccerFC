@@ -15,7 +15,7 @@
   <div id="announcementBannerLogin" class="announcement-bar hidden"></div>
   <div class="eyebrow">FC · دوري بيت الشباب</div>
   <h1 id="gateTitle">جاري التحميل</h1>
-  <div class="sub" id="gateSub">بنجيب البيانات الصبر مفتاح الفرج...</div>
+  <div class="sub" id="gateSub">بنجيب البيانات من الصبر مفتاح الفرج...</div>
   <div class="spinner" id="gateSpinner"></div>
 
   <div id="bootstrapForm" class="login-form hidden">
@@ -1187,6 +1187,8 @@ async function requestAIComment(matchId){
       stillThere.aiComment = json.comment;
       await pushData();
       renderMatchesTable();
+    } else if(json && json.error){
+      console.warn('AI comment failed:', json.error);
     }
   }catch(e){ /* التعليق اختياري، لو فشل منتحرقش دم المستخدم بتنبيه */ }
 }
@@ -1357,7 +1359,7 @@ async function generateAISummary(){
       textEl.textContent = json.summary;
       box.classList.remove('hidden');
     } else {
-      alert('معرفش أعمل الملخص دلوقتي. تأكد إنك حطيت مفتاح Gemini في الـ Apps Script، وحاول تاني.');
+      alert('معرفش أعمل الملخص دلوقتي.' + (json && json.error ? ('\nالسبب: ' + json.error) : ' تأكد إنك حطيت مفتاح Gemini في الـ Apps Script، وحاول تاني.'));
     }
   }catch(e){
     alert('مقدرش أوصل لخدمة الذكاء الاصطناعي. تأكد إن الإنترنت شغال.');
