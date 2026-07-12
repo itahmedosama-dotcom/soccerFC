@@ -246,7 +246,8 @@ padding:18px;border-radius:16px;min-width:140px;text-align:center;
 }
 
 .captcha-box{
-  user-select:none;
+  user-select:all;
+  cursor:pointer;
   font-family:'Space Mono', monospace;
   font-weight:700;
   font-size:19px;
