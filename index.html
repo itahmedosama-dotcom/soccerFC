@@ -15,7 +15,7 @@
   <div id="announcementBannerLogin" class="announcement-bar hidden"></div>
   <div class="eyebrow">FC · دوري بيت الشباب</div>
   <h1 id="gateTitle">جاري التحميل</h1>
-  <div class="sub" id="gateSub">بنجيب البيانات من الصبر مفتاح الفرج...</div>
+  <div class="sub" id="gateSub">بنجيب البيانات الصبر مفتاح الفرج...</div>
   <div class="spinner" id="gateSpinner"></div>
 
   <div id="bootstrapForm" class="login-form hidden">
@@ -134,7 +134,9 @@
       <div><label>يوزر نيم</label><input id="newUserUsername" placeholder="sara"></div>
       <div><label>رقم التليفون</label><input id="newUserPhone" type="tel" placeholder="01xxxxxxxxx"></div>
       <div><label>الايميل</label><input id="newUserEmail" type="email" placeholder="name@email.com"></div>
-      <div><label>باسورد</label><input id="newUserPassword" type="password"></div>
+      <div><label>باسورد</label>
+        <div class="pass-field-wrap"><input id="newUserPassword" type="password"><button type="button" class="pass-eye" onclick="togglePasswordVisibility('newUserPassword', this)">👁️</button></div>
+      </div>
       <div>
         <label>الصلاحية</label>
         <select id="newUserRole">
@@ -145,6 +147,16 @@
       <div style="align-self:flex-end;"><button onclick="addUser()">إضافة مستخدم</button></div>
     </div>
     <div id="usersList"></div>
+
+    <div class="merge-box">
+      <h2 style="font-size:20px;">🔗 دمج حسابين مكررين</h2>
+      <div class="sub" style="margin-bottom:10px;">لو حد عمل حساب مرتين بالغلط، اختار الحساب اللي هتحتفظ بيه والحساب التاني اللي هيتمسح وينضم لبياناته للأول.</div>
+      <div class="row">
+        <div><label>الحساب اللي هيفضل</label><select id="mergeKeepUser"></select></div>
+        <div><label>الحساب اللي هيتمسح ويتدمج</label><select id="mergeDupUser"></select></div>
+        <div style="align-self:flex-end;"><button class="ghost" onclick="mergeUsersUI()">🔗 دمج الحسابين</button></div>
+      </div>
+    </div>
   </section>
 
   <section id="matchesSection">
@@ -169,11 +181,16 @@
           <option value="all">كل اللاعبين (ترتيب عام)</option>
           <option value="player">لاعب معيّن</option>
           <option value="team">فريق معيّن</option>
+          <option value="h2h">مواجهة مباشرة بين لاعبين</option>
         </select>
       </div>
       <div id="analysisFilterValueWrap" class="hidden">
         <label>اختار</label>
         <select id="analysisFilterValue" onchange="renderAnalysis()"></select>
+      </div>
+      <div id="analysisFilterValue2Wrap" class="hidden">
+        <label>ضد</label>
+        <select id="analysisFilterValue2" onchange="renderAnalysis()"></select>
       </div>
       <div style="align-self:flex-end;">
         <button class="ghost" id="aiSummaryBtn" onclick="generateAISummary()">🤖 اعمل ملخص الفترة</button>
@@ -348,6 +365,116 @@ function ensureTeam(name){
 
 function uid(){ return Math.random().toString(36).slice(2,9); }
 
+// ====== تشفير كلمة السر (SHA-256) عشان محدش يشوفها لو فتح الشيت ======
+async function sha256Hex(text){
+  const enc = new TextEncoder().encode(String(text||''));
+  const buf = await crypto.subtle.digest('SHA-256', enc);
+  return [...new Uint8Array(buf)].map(b=>b.toString(16).padStart(2,'0')).join('');
+}
+// بيرجع true لو الباسورد المكتوب مطابق للمخزن، وبيدعم كمان الحسابات القديمة اللي كانت متخزنة نص عادي (هش تلقائيًا بعد أول دخول ناجح)
+async function passwordMatches(user, plainPassword){
+  const enteredHash = await sha256Hex(plainPassword);
+  if(user.password === enteredHash) return true;
+  if(user.password === plainPassword){
+    user.password = enteredHash; // ترقية تلقائية للتشفير
+    pushData().catch(()=>{});
+    return true;
+  }
+  return false;
+}
+
+// ====== أفاتار/حروف ملونة للاعبين والمستخدمين ======
+const AVATAR_PALETTE = ['#e9c46a','#4fae5f','#3fa7ff','#f2a541','#e2603c','#9b6ae9','#3ac6a8','#e968a8','#c9c9a3','#6a8de9'];
+function stringToColor_(str){
+  let hash = 0;
+  const s = String(str||'?');
+  for(let i=0;i<s.length;i++){ hash = s.charCodeAt(i) + ((hash<<5)-hash); }
+  return AVATAR_PALETTE[Math.abs(hash) % AVATAR_PALETTE.length];
+}
+function avatarHtml(name, small){
+  const clean = (name||'؟').trim();
+  const letter = clean.charAt(0).toUpperCase() || '؟';
+  const color = stringToColor_(clean);
+  return `<span class="avatar${small?' sm':''}" style="background:${color}">${escapeHtml_(letter)}</span>`;
+}
+function avatarNameHtml(name, small){
+  return `<span class="avatar-name">${avatarHtml(name, small)}<span>${escapeHtml_(name)}</span></span>`;
+}
+
+// ====== إشعارات أنيقة بدل alert() ======
+function ensureToastWrap_(){
+  let wrap = document.getElementById('toastWrap');
+  if(!wrap){
+    wrap = document.createElement('div');
+    wrap.id = 'toastWrap';
+    wrap.className = 'toast-wrap';
+    document.body.appendChild(wrap);
+  }
+  return wrap;
+}
+function showToast(msg, type){
+  const wrap = ensureToastWrap_();
+  const el = document.createElement('div');
+  el.className = 'toast ' + (type || 'info');
+  const icon = type==='success' ? '✅' : (type==='error' ? '⚠️' : 'ℹ️');
+  el.innerHTML = `<span>${icon}</span><span>${escapeHtml_(msg)}</span>`;
+  wrap.appendChild(el);
+  setTimeout(()=>{
+    el.classList.add('leaving');
+    setTimeout(()=>el.remove(), 220);
+  }, 3200);
+}
+// بديل alert() القديم - أي alert() فاضل في الكود بيتحول لتوست تلقائيًا
+window.alert = function(msg){ showToast(msg, /غلط|مقدرش|فشل|error|خطأ/i.test(msg||'') ? 'error' : 'info'); };
+
+// ====== مودال تأكيد أنيق بدل confirm() ======
+function showConfirm(opts){
+  return new Promise((resolve)=>{
+    const overlay = document.createElement('div');
+    overlay.className = 'modal-overlay';
+    const buttonsHtml = (opts.buttons || [{label:'إلغاء', value:false, cls:'ghost'}, {label:'تأكيد', value:true, cls:'danger'}])
+      .map((b,i)=>`<button class="${b.cls||''}" data-i="${i}">${escapeHtml_(b.label)}</button>`).join('');
+    overlay.innerHTML = `<div class="modal-box">
+      <h3>${escapeHtml_(opts.title||'تأكيد')}</h3>
+      <p>${escapeHtml_(opts.text||'')}</p>
+      <div class="modal-actions">${buttonsHtml}</div>
+    </div>`;
+    document.body.appendChild(overlay);
+    const btns = (opts.buttons || [{label:'إلغاء', value:false}, {label:'تأكيد', value:true}]);
+    overlay.querySelectorAll('button').forEach((btnEl, i)=>{
+      btnEl.onclick = ()=>{ overlay.remove(); resolve(btns[i].value); };
+    });
+    overlay.onclick = (e)=>{ if(e.target===overlay){ overlay.remove(); resolve(false); } };
+  });
+}
+
+// ====== عداد متحرك للأرقام ======
+function animateCounter(el, finalValue, duration){
+  if(!el) return;
+  const isNum = typeof finalValue === 'number' && !isNaN(finalValue);
+  if(!isNum){ el.textContent = finalValue; return; }
+  duration = duration || 700;
+  const start = 0;
+  const startTime = performance.now();
+  function step(now){
+    const progress = Math.min(1, (now - startTime) / duration);
+    const eased = 1 - Math.pow(1 - progress, 3);
+    const val = Math.round(start + (finalValue - start) * eased);
+    el.textContent = val;
+    if(progress < 1) requestAnimationFrame(step);
+    else el.textContent = finalValue;
+  }
+  requestAnimationFrame(step);
+}
+
+// إظهار/إخفاء كلمة السر في أي خانة إدخال من لوحة التحكم
+function togglePasswordVisibility(inputId, btn){
+  const input = document.getElementById(inputId);
+  if(!input) return;
+  if(input.type === 'password'){ input.type = 'text'; if(btn) btn.textContent = '🙈'; }
+  else { input.type = 'password'; if(btn) btn.textContent = '👁️'; }
+}
+
 function showConnError(msg){
   const el = document.getElementById('connErr');
   el.textContent = msg;
@@ -517,7 +644,7 @@ async function bootstrapAdmin(){
   if(!name || !username || !password){ errEl.textContent='لازم تملأ كل الحقول'; errEl.style.display='block'; return; }
   if(usernameTaken(username)){ errEl.textContent='اليوزر نيم ده مستخدم قبل كده'; errEl.style.display='block'; return; }
   errEl.style.display='none';
-  const user = {id:uid(), name, username, password, phone, email, role:'admin', status:'approved'};
+  const user = {id:uid(), name, username, password: await sha256Hex(password), phone, email, role:'admin', status:'approved'};
   DATA.users.push(user);
   ensurePlayerForName(name);
   await pushData();
@@ -549,7 +676,7 @@ async function signup(){
   if(usernameTaken(username)){ errEl.textContent='اليوزر نيم ده مستخدم قبل كده'; errEl.style.display='block'; return; }
   if(!checkCaptcha('su')){ errEl.textContent='اكتب كود التحقق صح'; errEl.style.display='block'; return; }
   errEl.style.display='none';
-  DATA.users.push({id:uid(), name, username, password, phone, email, role:'viewer', status:'pending'});
+  DATA.users.push({id:uid(), name, username, password: await sha256Hex(password), phone, email, role:'viewer', status:'pending'});
   ensurePlayerForName(name);
   await pushData();
   document.getElementById('signupForm').classList.add('hidden');
@@ -563,10 +690,12 @@ async function doLogin(){
   const password = document.getElementById('loginPassword').value;
   const errEl = document.getElementById('loginErr');
   if(!checkCaptcha('login')){ errEl.textContent='اكتب كود التحقق صح'; errEl.style.display='block'; return; }
-  const user = DATA.users.find(u=>u.username===username && u.password===password);
-  if(!user){ errEl.textContent='اليوزر أو الباسورد غلط'; errEl.style.display='block'; return; }
-  if(user.status === 'pending'){ errEl.textContent='حسابك لسه مستني موافقة الأدمن'; errEl.style.display='block'; return; }
-  enterApp(user);
+  const candidate = DATA.users.find(u=>normUsername(u.username)===normUsername(username));
+  const ok = candidate ? await passwordMatches(candidate, password) : false;
+  if(!candidate || !ok){ errEl.textContent='اليوزر أو الباسورد غلط'; errEl.style.display='block'; return; }
+  if(candidate.status === 'pending'){ errEl.textContent='حسابك لسه مستني موافقة الأدمن'; errEl.style.display='block'; return; }
+  if(candidate.status === 'disabled'){ errEl.textContent='حسابك متوقف حاليًا، كلم الأدمن.'; errEl.style.display='block'; return; }
+  enterApp(candidate);
 }
 
 function playCheer(){
@@ -698,7 +827,7 @@ async function addUser(){
   const role = document.getElementById('newUserRole').value;
   if(!name || !username || !password){ alert('املأ كل الحقول'); return; }
   if(usernameTaken(username)){ alert('اليوزر نيم ده مستخدم قبل كده'); return; }
-  DATA.users.push({id:uid(), name, username, password, phone, email, role, status:'approved'});
+  DATA.users.push({id:uid(), name, username, password: await sha256Hex(password), phone, email, role, status:'approved'});
   ensurePlayerForName(name);
   document.getElementById('newUserName').value='';
   document.getElementById('newUserUsername').value='';
@@ -782,7 +911,7 @@ function playerDetailHtml(detail, title){
     <h2>${title}</h2>
     <div class="analysis-card top">
       <div>
-        <div class="p-name">${mine.name} · الترتيب #${rank+1}</div>
+        <div class="p-name">${avatarNameHtml(mine.name, true)} · الترتيب #${rank+1} ${streakPillHtml(player.id, myMatches)}</div>
         <div class="p-stats">${mine.played} مباراة · ${mine.win} فوز · ${mine.draw} تعادل · ${mine.loss} خسارة · أهداف ${mine.gf}-${mine.ga}</div>
       </div>
       <div style="text-align:left">
@@ -948,26 +1077,179 @@ async function rejectUser(id){
   await pushData();
   renderPendingList();
 }
+// بيمسح كل بيانات ونتايج مستخدم معين: كارت اللاعب المرتبط بيه، كل المباريات اللي لعبها، وكل تعليقاته
+function purgeUserData(user){
+  const player = DATA.players.find(p=>p.name.trim().toLowerCase()===user.name.trim().toLowerCase());
+  if(player){
+    DATA.matches = DATA.matches.filter(m=> !m.teamA.players.includes(player.id) && !m.teamB.players.includes(player.id));
+    DATA.players = DATA.players.filter(p=>p.id!==player.id);
+  }
+  DATA.comments = DATA.comments.filter(c=>c.userId!==user.id);
+  // شيل أي تعليقات كانت على مباريات اتمسحت
+  const remainingMatchIds = new Set(DATA.matches.map(m=>m.id));
+  DATA.comments = DATA.comments.filter(c=>remainingMatchIds.has(c.matchId));
+}
+
 async function removeUser(id){
-  if(id === CURRENT_USER.id){ alert('مينفعش تمسح حسابك وانت داخل بيه'); return; }
+  if(id === CURRENT_USER.id){ showToast('مينفعش تمسح حسابك وانت داخل بيه', 'error'); return; }
+  const user = DATA.users.find(u=>u.id===id);
+  if(!user) return;
+  const choice = await showConfirm({
+    title:'مسح المستخدم',
+    text:`عايز تمسح حساب "${user.name}" بس، ولا تمسح معاه كل مبارياته وتعليقاته ونتايجه كمان؟`,
+    buttons:[
+      {label:'إلغاء', value:'cancel', cls:'ghost'},
+      {label:'الحساب بس', value:'account', cls:''},
+      {label:'الحساب + كل بياناته', value:'all', cls:'danger'}
+    ]
+  });
+  if(choice==='cancel' || !choice) return;
+  if(choice==='all') purgeUserData(user);
   DATA.users = DATA.users.filter(u=>u.id!==id);
   await pushData();
-  renderUsersList();
+  renderAll();
+  showToast(choice==='all' ? 'اتمسح الحساب مع كل بياناته ✅' : 'اتمسح الحساب ✅', 'success');
 }
+
+async function toggleUserStatus(id){
+  const u = DATA.users.find(x=>x.id===id);
+  if(!u) return;
+  if(id===CURRENT_USER.id){ showToast('مينفعش توقف حسابك وانت داخل بيه', 'error'); return; }
+  u.status = (u.status==='disabled') ? 'approved' : 'disabled';
+  await pushData();
+  renderUsersList();
+  showToast(u.status==='disabled' ? 'اتوقف الحساب' : 'اتفعّل الحساب', 'success');
+}
+
+let editingUserId = null;
+function startEditUser(id){ editingUserId = id; renderUsersList(); }
+function cancelEditUser(){ editingUserId = null; renderUsersList(); }
+async function saveEditUser(id){
+  const u = DATA.users.find(x=>x.id===id);
+  if(!u) return;
+  const name = document.getElementById('euName-'+id).value.trim();
+  const username = document.getElementById('euUsername-'+id).value.trim();
+  const phone = document.getElementById('euPhone-'+id).value.trim();
+  const email = document.getElementById('euEmail-'+id).value.trim();
+  const role = document.getElementById('euRole-'+id).value;
+  const newPassword = document.getElementById('euPassword-'+id).value;
+  if(!name || !username){ showToast('الاسم واليوزر نيم لازم يتملوا', 'error'); return; }
+  if(usernameTaken(username, id)){ showToast('اليوزر نيم ده مستخدم لحد تاني', 'error'); return; }
+  u.name = name; u.username = username; u.phone = phone; u.email = email; u.role = role;
+  if(newPassword){ u.password = await sha256Hex(newPassword); }
+  editingUserId = null;
+  await pushData();
+  renderAll();
+  showToast('اتحدثت بيانات المستخدم ✅', 'success');
+}
+
+function renderUserSelectOptions_(selectEl, users, prevValue){
+  selectEl.innerHTML = users.map(u=>`<option value="${u.id}">${u.name} (@${u.username})</option>`).join('');
+  if(prevValue && [...selectEl.options].some(o=>o.value===prevValue)) selectEl.value = prevValue;
+}
+
+async function mergeUsersUI(){
+  const keepId = document.getElementById('mergeKeepUser').value;
+  const dupId = document.getElementById('mergeDupUser').value;
+  if(!keepId || !dupId || keepId===dupId){ showToast('اختار حسابين مختلفين', 'error'); return; }
+  const keepUser = DATA.users.find(u=>u.id===keepId);
+  const dupUser = DATA.users.find(u=>u.id===dupId);
+  if(!keepUser || !dupUser) return;
+  const ok = await showConfirm({
+    title:'دمج الحسابات',
+    text:`هيتمسح حساب "${dupUser.name}" وتتنقل كل تعليقاته ونتايجه لحساب "${keepUser.name}". متأكد؟`,
+    buttons:[{label:'إلغاء', value:false, cls:'ghost'}, {label:'دمج', value:true, cls:'danger'}]
+  });
+  if(!ok) return;
+  mergeUsers(keepUser, dupUser);
+  await pushData();
+  renderAll();
+  showToast('اتدمج الحسابين ✅', 'success');
+}
+
+function mergeUsers(keepUser, dupUser){
+  // انقل التعليقات لحساب المستخدم الباقي
+  DATA.comments.forEach(c=>{
+    if(c.userId===dupUser.id){ c.userId = keepUser.id; c.userName = keepUser.name; }
+  });
+  // ادمج كارت اللاعب المرتبط بكل حساب (لو الاسمين مختلفين وعندهم كارت لاعب منفصل)
+  const keepPlayer = DATA.players.find(p=>p.name.trim().toLowerCase()===keepUser.name.trim().toLowerCase());
+  const dupPlayer = DATA.players.find(p=>p.name.trim().toLowerCase()===dupUser.name.trim().toLowerCase());
+  if(dupPlayer && keepPlayer && dupPlayer.id !== keepPlayer.id){
+    DATA.matches.forEach(m=>{
+      ['teamA','teamB'].forEach(side=>{
+        const arr = m[side].players;
+        const idx = arr.indexOf(dupPlayer.id);
+        if(idx !== -1){
+          if(arr.includes(keepPlayer.id)) arr.splice(idx,1); // متكررش في نفس الفريق
+          else arr[idx] = keepPlayer.id;
+        }
+      });
+    });
+    DATA.players = DATA.players.filter(p=>p.id!==dupPlayer.id);
+  } else if(dupPlayer && !keepPlayer){
+    // الحساب الباقي مالوش كارت لاعب، فخلي كارت المكرر يتبع اسمه
+    dupPlayer.name = keepUser.name;
+  }
+  DATA.users = DATA.users.filter(u=>u.id!==dupUser.id);
+}
+
 function renderUsersList(){
   const el = document.getElementById('usersList');
   const approved = DATA.users.filter(u=>u.status!=='pending');
-  if(approved.length===0){ el.innerHTML = '<div class="empty">مفيش مستخدمين مفعّلين.</div>'; return; }
-  el.innerHTML = approved.map(u=>`
-    <div class="user-row">
-      <div>
-        <span class="p-name">${u.name}</span>
-        <span class="badge ${u.role}">${u.role==='admin'?'أدمن':'مشاهد'}</span>
-        <div class="meta">@${u.username}${u.phone?' · 📱 '+u.phone:''}${u.email?' · ✉️ '+u.email:''}</div>
-      </div>
-      <button class="danger" onclick="removeUser('${u.id}')">حذف</button>
-    </div>
-  `).join('');
+  if(approved.length===0){ el.innerHTML = '<div class="empty">مفيش مستخدمين مفعّلين.</div>'; }
+  else {
+    el.innerHTML = approved.map(u=>{
+      if(editingUserId === u.id){
+        return `<div class="edit-user-box">
+          <div class="row">
+            <div><label>الاسم</label><input id="euName-${u.id}" value="${escapeHtml_(u.name)}"></div>
+            <div><label>يوزر نيم</label><input id="euUsername-${u.id}" value="${escapeHtml_(u.username)}"></div>
+            <div><label>تليفون</label><input id="euPhone-${u.id}" value="${escapeHtml_(u.phone||'')}"></div>
+          </div>
+          <div class="row">
+            <div><label>ايميل</label><input id="euEmail-${u.id}" value="${escapeHtml_(u.email||'')}"></div>
+            <div>
+              <label>الصلاحية</label>
+              <select id="euRole-${u.id}">
+                <option value="viewer" ${u.role==='viewer'?'selected':''}>مشاهد</option>
+                <option value="admin" ${u.role==='admin'?'selected':''}>أدمن</option>
+              </select>
+            </div>
+            <div>
+              <label>باسورد جديد (سيبها فاضية لو مش هتغيرها)</label>
+              <div class="pass-field-wrap"><input id="euPassword-${u.id}" type="password"><button type="button" class="pass-eye" onclick="togglePasswordVisibility('euPassword-${u.id}', this)">👁️</button></div>
+            </div>
+          </div>
+          <div class="modal-actions" style="justify-content:flex-start;">
+            <button onclick="saveEditUser('${u.id}')">💾 حفظ</button>
+            <button class="ghost" onclick="cancelEditUser()">إلغاء</button>
+          </div>
+        </div>`;
+      }
+      const disabled = u.status==='disabled';
+      return `<div class="user-row">
+        <div>
+          <span class="p-name">${avatarNameHtml(u.name, true)}</span>
+          <span class="badge ${u.role}">${u.role==='admin'?'أدمن':'مشاهد'}</span>
+          ${disabled ? '<span class="badge disabled">متوقف</span>' : ''}
+          <div class="meta">@${escapeHtml_(u.username)}${u.phone?' · 📱 '+escapeHtml_(u.phone):''}${u.email?' · ✉️ '+escapeHtml_(u.email):''}</div>
+        </div>
+        <div class="u-actions">
+          <button class="ghost" onclick="startEditUser('${u.id}')">✎ تعديل</button>
+          <button class="ghost" onclick="toggleUserStatus('${u.id}')">${disabled?'✅ تفعيل':'⛔ إيقاف'}</button>
+          <button class="danger" onclick="removeUser('${u.id}')">حذف</button>
+        </div>
+      </div>`;
+    }).join('');
+  }
+  // تحديث قوائم الدمج
+  const keepSel = document.getElementById('mergeKeepUser');
+  const dupSel = document.getElementById('mergeDupUser');
+  if(keepSel && dupSel){
+    renderUserSelectOptions_(keepSel, approved, keepSel.value);
+    renderUserSelectOptions_(dupSel, approved, dupSel.value);
+  }
 }
 
 async function addTeam(){
@@ -1061,8 +1343,8 @@ function renderPlayersList(){
     el.innerHTML = '<div class="empty">لسه ما فيش لاعبين، ضيف أول واحد فوق.</div>';
     elViewer.innerHTML = '<div class="empty">لسه ما فيش لاعبين.</div>';
   } else {
-    el.innerHTML = DATA.players.map(p=>`<span class="tag">${p.name} <button onclick="editPlayer('${p.id}')" title="تعديل الاسم" style="color:var(--amber);">✎</button><button onclick="removePlayer('${p.id}')">×</button></span>`).join('');
-    elViewer.innerHTML = DATA.players.map(p=>`<span class="tag">${p.name}</span>`).join('');
+    el.innerHTML = DATA.players.map(p=>`<span class="tag">${avatarNameHtml(p.name, true)} <button onclick="editPlayer('${p.id}')" title="تعديل الاسم" style="color:var(--amber);">✎</button><button onclick="removePlayer('${p.id}')">×</button></span>`).join('');
+    elViewer.innerHTML = DATA.players.map(p=>`<span class="tag">${avatarNameHtml(p.name, true)}</span>`).join('');
   }
   if(viewerSection) viewerSection.style.display = 'none';
 }
@@ -1178,9 +1460,11 @@ async function saveEditMatch(id){
   requestAIComment(id);
 }
 
-async function requestAIComment(matchId){
+async function requestAIComment(matchId, manual){
   const m = DATA.matches.find(x=>x.id===matchId);
   if(!m) return;
+  const btn = document.getElementById('aiBtn-'+matchId);
+  if(btn) btn.classList.add('loading');
   try{
     const res = await fetch(SHEET_API_URL, {
       method:'POST',
@@ -1194,10 +1478,15 @@ async function requestAIComment(matchId){
       stillThere.aiComment = json.comment;
       await pushData();
       renderMatchesTable();
+      if(manual) showToast('جاهز التحليل بتاع المباراة ✅', 'success');
     } else if(json && json.error){
       console.warn('AI comment failed:', json.error);
+      if(manual) showToast('معرفش أعمل التحليل دلوقتي: ' + json.error, 'error');
     }
-  }catch(e){ /* التعليق اختياري، لو فشل منتحرقش دم المستخدم بتنبيه */ }
+  }catch(e){
+    if(manual) showToast('مقدرش أوصل لخدمة الذكاء الاصطناعي، تأكد من الإنترنت.', 'error');
+  }
+  if(btn) btn.classList.remove('loading');
 }
 
 function playerName(id){
@@ -1205,36 +1494,69 @@ function playerName(id){
   return p ? p.name : '؟';
 }
 
+const AI_ICON_SVG = '<svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M12 2a1 1 0 0 1 1 1v1.06A6.5 6.5 0 0 1 18.94 10H20a1 1 0 1 1 0 2h-1.06a6.5 6.5 0 0 1-5.94 5.94V19a1 1 0 1 1-2 0v-1.06A6.5 6.5 0 0 1 5.06 12H4a1 1 0 1 1 0-2h1.06A6.5 6.5 0 0 1 11 4.06V3a1 1 0 0 1 1-1Zm0 4.5a5.5 5.5 0 1 0 0 11 5.5 5.5 0 0 0 0-11ZM9.75 11a1.25 1.25 0 1 1 0 2.5 1.25 1.25 0 0 1 0-2.5Zm4.5 0a1.25 1.25 0 1 1 0 2.5 1.25 1.25 0 0 1 0-2.5Z" fill="white"/></svg>';
+
 function renderMatchesTable(){
   const el = document.getElementById('matchesTableWrap');
   if(DATA.matches.length===0){ el.innerHTML = '<div class="empty">لسه ما فيش مباريات متسجلة.</div>'; return; }
-  const rows = [...DATA.matches].sort((a,b)=> (a.date < b.date ? 1 : -1)).map(m=>{
-    const result = m.scoreA===m.scoreB ? 'تعادل' : (m.scoreA>m.scoreB ? m.teamA.name+' فاز' : m.teamB.name+' فاز');
+  const sorted = [...DATA.matches].sort((a,b)=> (a.date < b.date ? 1 : -1));
+  const cards = sorted.map(m=>{
+    const aWin = m.scoreA > m.scoreB, bWin = m.scoreB > m.scoreA, draw = m.scoreA === m.scoreB;
+    const resClass = draw ? 'res-draw' : (aWin ? 'res-win-a' : 'res-win-b');
+    const resultLabel = draw ? 'تعادل' : (aWin ? m.teamA.name+' فاز 🏆' : m.teamB.name+' فاز 🏆');
+
     if(ROLE==='admin' && editingMatchId===m.id){
-      return `<tr>
-        <td><input type="date" id="editDate-${m.id}" value="${m.date}"></td>
-        <td>${m.mode==='1v1'?'فردي':'زوجي'}</td>
-        <td>${m.teamA.name}<br><span style="color:var(--text-dim); font-size:11.5px">${m.teamA.players.map(playerName).join('، ')}</span></td>
-        <td><input type="number" min="0" id="editScoreA-${m.id}" value="${m.scoreA}" style="width:56px; display:inline-block;"> - <input type="number" min="0" id="editScoreB-${m.id}" value="${m.scoreB}" style="width:56px; display:inline-block;"></td>
-        <td>${m.teamB.name}<br><span style="color:var(--text-dim); font-size:11.5px">${m.teamB.players.map(playerName).join('، ')}</span></td>
-        <td style="font-size:12px; color:var(--text-dim)">${result}</td>
-        <td><span class="del" style="color:var(--win)" onclick="saveEditMatch('${m.id}')">حفظ</span> · <span class="del" onclick="cancelEditMatch()">إلغاء</span></td>
-      </tr>`;
+      return `<div class="match-card ${resClass}">
+        <div class="match-card-top">
+          <input type="date" id="editDate-${m.id}" value="${m.date}" style="width:auto;">
+          <span class="match-meta">${m.mode==='1v1'?'فردي':'زوجي'}</span>
+        </div>
+        <div class="match-teams">
+          <div class="match-team"><div class="team-title">${escapeHtml_(m.teamA.name)}</div></div>
+          <div class="match-score">
+            <input type="number" min="0" id="editScoreA-${m.id}" value="${m.scoreA}" style="width:56px; display:inline-block; text-align:center;">
+            -
+            <input type="number" min="0" id="editScoreB-${m.id}" value="${m.scoreB}" style="width:56px; display:inline-block; text-align:center;">
+          </div>
+          <div class="match-team"><div class="team-title">${escapeHtml_(m.teamB.name)}</div></div>
+        </div>
+        <div class="match-card-footer">
+          <button onclick="saveEditMatch('${m.id}')">💾 حفظ</button>
+          <button class="ghost" onclick="cancelEditMatch()">إلغاء</button>
+        </div>
+      </div>`;
     }
-    return `<tr>
-      <td>${m.date}</td>
-      <td>${m.mode==='1v1'?'فردي':'زوجي'}</td>
-      <td>${m.teamA.name}<br><span style="color:var(--text-dim); font-size:11.5px">${m.teamA.players.map(playerName).join('، ')}</span></td>
-      <td class="score-pill">${m.scoreA} - ${m.scoreB}</td>
-      <td>${m.teamB.name}<br><span style="color:var(--text-dim); font-size:11.5px">${m.teamB.players.map(playerName).join('، ')}</span></td>
-      <td style="font-size:12px; color:var(--text-dim)">${result}${m.aiComment ? `<br><span style="color:var(--gold); font-size:11.5px;">🤖 ${m.aiComment}</span>` : ''}</td>
-      <td>${ROLE==='admin' ? `<span class="del" onclick="startEditMatch('${m.id}')">تصحيح</span> · <span class="del" onclick="removeMatch('${m.id}')">حذف</span>` : ''}</td>
-    </tr>
-    <tr class="comments-row"><td colspan="7">${renderCommentsHtml(m.id)}</td></tr>`;
+
+    return `<div class="match-card ${resClass}">
+      <div class="match-card-top">
+        <span class="match-meta">📅 ${m.date} · ${m.mode==='1v1'?'فردي':'زوجي'}</span>
+        <span class="match-meta">${resultLabel}</span>
+      </div>
+      <div class="match-teams">
+        <div class="match-team ${aWin?'winner':(bWin?'loser':'')}">
+          <div class="team-title">${escapeHtml_(m.teamA.name)}</div>
+          <div class="team-players">${m.teamA.players.map(pid=>avatarNameHtml(playerName(pid), true)).join('')}</div>
+        </div>
+        <div>
+          <div class="match-score">${m.scoreA} - ${m.scoreB}</div>
+          <div class="match-vs-label">VS</div>
+        </div>
+        <div class="match-team ${bWin?'winner':(aWin?'loser':'')}">
+          <div class="team-title">${escapeHtml_(m.teamB.name)}</div>
+          <div class="team-players">${m.teamB.players.map(pid=>avatarNameHtml(playerName(pid), true)).join('')}</div>
+        </div>
+      </div>
+      ${m.aiComment ? `<div class="ai-comment-box">🤖 ${escapeHtml_(m.aiComment)}</div>` : ''}
+      <div class="match-card-footer">
+        <div class="match-actions">
+          <button class="ai-mini-btn" id="aiBtn-${m.id}" onclick="requestAIComment('${m.id}', true)" title="اطلب تحليل الذكاء الاصطناعي للمباراة دي دلوقتي">${AI_ICON_SVG}</button>
+          ${ROLE==='admin' ? `<span class="del" onclick="startEditMatch('${m.id}')">✎ تصحيح</span> · <span class="del" onclick="removeMatch('${m.id}')">🗑️ حذف</span>` : ''}
+        </div>
+      </div>
+      ${renderCommentsHtml(m.id)}
+    </div>`;
   }).join('');
-  el.innerHTML = `<table><thead><tr>
-    <th>التاريخ</th><th>النوع</th><th>فريق A</th><th>النتيجة</th><th>فريق B</th><th>النتيجة</th><th></th>
-  </tr></thead><tbody>${rows}</tbody></table>`;
+  el.innerHTML = `<div class="matches-cards">${cards}</div>`;
 }
 
 function escapeHtml_(str){
@@ -1246,14 +1568,18 @@ let editingCommentId = null;
 function renderCommentsHtml(matchId){
   const comments = DATA.comments.filter(c=>c.matchId===matchId).sort((a,b)=> (a.createdAt < b.createdAt ? -1 : 1));
   const list = comments.length ? comments.map(c=>{
+    const isOwn = CURRENT_USER && c.userId === CURRENT_USER.id;
     if(ROLE==='admin' && editingCommentId===c.id){
-      return `<div class="comment-item">
+      return `<div class="comment-item ${isOwn?'own':''}">
         <textarea id="editComment-${c.id}" style="width:100%; min-height:50px;">${escapeHtml_(c.text)}</textarea>
         <div class="comment-actions"><span class="del" style="color:var(--win)" onclick="saveEditComment('${c.id}')">حفظ</span> · <span class="del" onclick="cancelEditComment()">إلغاء</span></div>
       </div>`;
     }
-    return `<div class="comment-item">
-      <div class="comment-head"><span class="comment-name">${escapeHtml_(c.userName)}</span><span class="comment-meta">${formatDateTime(c.createdAt)}</span></div>
+    return `<div class="comment-item ${isOwn?'own':''}">
+      <div class="comment-head">
+        <span class="comment-name-wrap">${avatarHtml(c.userName, true)}<span class="comment-name">${escapeHtml_(c.userName)}</span></span>
+        <span class="comment-meta">${formatDateTime(c.createdAt)}</span>
+      </div>
       <div class="comment-text">${escapeHtml_(c.text)}</div>
       ${ROLE==='admin' ? `<div class="comment-actions"><span class="del" onclick="startEditComment('${c.id}')">تعديل</span> · <span class="del" onclick="deleteComment('${c.id}')">حذف</span></div>` : ''}
     </div>`;
@@ -1264,7 +1590,7 @@ function renderCommentsHtml(matchId){
     ${list}
     <div class="comment-form no-print">
       <input id="commentInput-${matchId}" placeholder="اكتب تعليقك على المباراة دي..." onkeydown="if(event.key==='Enter'){addComment('${matchId}');}">
-      <button class="ghost" onclick="addComment('${matchId}')">إرسال</button>
+      <button class="ghost" onclick="addComment('${matchId}')">➤</button>
     </div>
   </div>`;
 }
@@ -1305,7 +1631,8 @@ async function saveEditComment(id){
 }
 async function deleteComment(id){
   if(ROLE!=='admin') return;
-  if(!confirm('متأكد إنك عايز تمسح التعليق ده؟')) return;
+  const ok = await showConfirm({title:'مسح التعليق', text:'متأكد إنك عايز تمسح التعليق ده؟', buttons:[{label:'إلغاء', value:false, cls:'ghost'},{label:'مسح', value:true, cls:'danger'}]});
+  if(!ok) return;
   DATA.comments = DATA.comments.filter(c=>c.id!==id);
   await pushData();
   renderMatchesTable();
@@ -1314,7 +1641,7 @@ async function deleteComment(id){
 function computeStats(matches){
   matches = matches || DATA.matches;
   const stats = {};
-  DATA.players.forEach(p=> stats[p.id] = {name:p.name, played:0, win:0, draw:0, loss:0, gf:0, ga:0});
+  DATA.players.forEach(p=> stats[p.id] = {id:p.id, name:p.name, played:0, win:0, draw:0, loss:0, gf:0, ga:0});
   matches.forEach(m=>{
     const aWin = m.scoreA > m.scoreB, bWin = m.scoreB > m.scoreA, draw = m.scoreA === m.scoreB;
     m.teamA.players.forEach(pid=>{
@@ -1384,6 +1711,99 @@ function renderSingleTeamAnalysis(teamName, matches){
     </div>`;
 }
 
+// ====== سلسلة الانتصارات/الهزايم لكل لاعب ======
+function resultForPlayer_(m, playerId){
+  const onA = m.teamA.players.includes(playerId);
+  const gf = onA ? m.scoreA : m.scoreB;
+  const ga = onA ? m.scoreB : m.scoreA;
+  return gf>ga ? 'W' : (gf===ga ? 'D' : 'L');
+}
+function computeStreaks(playerId, matches){
+  matches = matches || DATA.matches;
+  const mine = matches.filter(m=> m.teamA.players.includes(playerId) || m.teamB.players.includes(playerId));
+  if(mine.length===0) return null;
+  const sorted = [...mine].sort((a,b)=> (a.date < b.date ? 1 : -1)); // الأحدث الأول
+  const results = sorted.map(m=>resultForPlayer_(m, playerId));
+  let streakType = results[0], streakCount = 1;
+  for(let i=1;i<results.length;i++){ if(results[i]===streakType) streakCount++; else break; }
+  let sinceWin = 0;
+  for(let i=0;i<results.length;i++){ if(results[i]==='W') break; sinceWin++; }
+  return { streakType, streakCount, sinceWin, total: results.length };
+}
+function streakPillHtml(playerId, matches){
+  const s = computeStreaks(playerId, matches);
+  if(!s) return '';
+  let out = '';
+  if(s.streakType==='W' && s.streakCount>=2) out += `<span class="streak-pill hot-win">🔥 ${s.streakCount} انتصارات متتالية</span>`;
+  else if(s.streakType==='L' && s.streakCount>=2) out += `<span class="streak-pill hot-loss">😞 ${s.streakCount} هزايم متتالية</span>`;
+  if(s.sinceWin>=3 && s.sinceWin < s.total) out += `<span class="streak-pill hot-loss">⚠️ مكسبش آخر ${s.sinceWin} مباريات</span>`;
+  return out;
+}
+
+// ====== أفضل ثنائي في مباريات الزوجي ======
+function computeBestDuo(matches){
+  matches = matches || DATA.matches;
+  const duoMap = {};
+  matches.filter(m=>m.mode==='2v2').forEach(m=>{
+    [
+      {players:m.teamA.players, gf:m.scoreA, ga:m.scoreB},
+      {players:m.teamB.players, gf:m.scoreB, ga:m.scoreA}
+    ].forEach(side=>{
+      if(side.players.length!==2) return;
+      const key = [...side.players].sort().join(',');
+      if(!duoMap[key]) duoMap[key] = { players: side.players, played:0, win:0, draw:0, loss:0 };
+      const d = duoMap[key];
+      d.played++;
+      if(side.gf>side.ga) d.win++; else if(side.gf===side.ga) d.draw++; else d.loss++;
+    });
+  });
+  return Object.values(duoMap)
+    .map(d=>({ ...d, winRate: d.played ? Math.round((d.win/d.played)*100) : 0 }))
+    .filter(d=>d.played>=2)
+    .sort((a,b)=> b.winRate - a.winRate || b.played - a.played);
+}
+
+// ====== مواجهات مباشرة بين لاعبين ======
+function computeHeadToHead(p1, p2, matches){
+  matches = matches || DATA.matches;
+  let p1win=0, p2win=0, draw=0, p1gf=0, p2gf=0;
+  const meetings = [];
+  matches.forEach(m=>{
+    const p1inA = m.teamA.players.includes(p1), p1inB = m.teamB.players.includes(p1);
+    const p2inA = m.teamA.players.includes(p2), p2inB = m.teamB.players.includes(p2);
+    if(p1inA && p2inB){
+      p1gf+=m.scoreA; p2gf+=m.scoreB;
+      if(m.scoreA>m.scoreB) p1win++; else if(m.scoreA<m.scoreB) p2win++; else draw++;
+      meetings.push(m);
+    } else if(p1inB && p2inA){
+      p1gf+=m.scoreB; p2gf+=m.scoreA;
+      if(m.scoreB>m.scoreA) p1win++; else if(m.scoreB<m.scoreA) p2win++; else draw++;
+      meetings.push(m);
+    }
+  });
+  return { p1win, p2win, draw, p1gf, p2gf, meetings: meetings.sort((a,b)=>(a.date<b.date?1:-1)) };
+}
+
+// ====== أكتر مباراة "سخنة" ======
+function computeHottestMatch(matches){
+  matches = matches || DATA.matches;
+  if(matches.length===0) return null;
+  let mostGoals = matches[0], biggestDiff = matches[0];
+  matches.forEach(m=>{
+    if((m.scoreA+m.scoreB) > (mostGoals.scoreA+mostGoals.scoreB)) mostGoals = m;
+    if(Math.abs(m.scoreA-m.scoreB) > Math.abs(biggestDiff.scoreA-biggestDiff.scoreB)) biggestDiff = m;
+  });
+  return { mostGoals, biggestDiff };
+}
+function hotMatchCardHtml_(title, m){
+  if(!m) return '';
+  return `<div class="hot-match-card">
+    <div class="match-meta" style="margin-bottom:6px;">${title}</div>
+    <div class="p-name">${escapeHtml_(m.teamA.name)} ${m.scoreA} - ${m.scoreB} ${escapeHtml_(m.teamB.name)}</div>
+    <div class="p-stats">📅 ${m.date} · ${m.mode==='1v1'?'فردي':'زوجي'}</div>
+  </div>`;
+}
+
 function getFilteredMatches(){
   const fromEl = document.getElementById('analysisFrom');
   const toEl = document.getElementById('analysisTo');
@@ -1402,18 +1822,30 @@ function renderAnalysisFilterOptions(){
   const type = typeSel.value;
   const valSel = document.getElementById('analysisFilterValue');
   const wrap = document.getElementById('analysisFilterValueWrap');
+  const val2Sel = document.getElementById('analysisFilterValue2');
+  const wrap2 = document.getElementById('analysisFilterValue2Wrap');
   const prev = valSel.value;
+  const prev2 = val2Sel ? val2Sel.value : '';
   if(type==='player'){
     wrap.classList.remove('hidden');
+    if(wrap2) wrap2.classList.add('hidden');
     valSel.innerHTML = DATA.players.map(p=>`<option value="${p.id}">${p.name}</option>`).join('');
   } else if(type==='team'){
     wrap.classList.remove('hidden');
+    if(wrap2) wrap2.classList.add('hidden');
     valSel.innerHTML = DATA.teams.map(t=>`<option value="${t.name}">${t.name}</option>`).join('');
+  } else if(type==='h2h'){
+    wrap.classList.remove('hidden');
+    if(wrap2) wrap2.classList.remove('hidden');
+    valSel.innerHTML = DATA.players.map(p=>`<option value="${p.id}">${p.name}</option>`).join('');
+    if(val2Sel) val2Sel.innerHTML = DATA.players.map(p=>`<option value="${p.id}">${p.name}</option>`).join('');
   } else {
     wrap.classList.add('hidden');
+    if(wrap2) wrap2.classList.add('hidden');
     valSel.innerHTML = '';
   }
   if(prev && [...valSel.options].some(o=>o.value===prev)) valSel.value = prev;
+  if(val2Sel && prev2 && [...val2Sel.options].some(o=>o.value===prev2)) val2Sel.value = prev2;
 }
 
 function onAnalysisFilterTypeChange(){
@@ -1615,6 +2047,34 @@ function renderAnalysis(){
     renderSingleTeamAnalysis(teamName, filtered);
     return;
   }
+  if(type === 'h2h'){
+    if(podiumEl) podiumEl.innerHTML = '';
+    if(statsChart){ statsChart.destroy(); statsChart = null; }
+    const p1 = document.getElementById('analysisFilterValue').value;
+    const p2 = document.getElementById('analysisFilterValue2').value;
+    if(!p1 || !p2 || p1===p2){ el.innerHTML = '<div class="empty">اختار لاعبين مختلفين عشان تشوف مواجهاتهم.</div>'; return; }
+    const h2h = computeHeadToHead(p1, p2, filtered);
+    if(h2h.meetings.length===0){ el.innerHTML = `<div class="empty">${playerName(p1)} و${playerName(p2)} لسه ملعبوش ضد بعض في الفترة دي.</div>`; return; }
+    el.innerHTML = `
+      <div class="analysis-card top">
+        <div>
+          <div class="p-name">${avatarNameHtml(playerName(p1), true)} ضد ${avatarNameHtml(playerName(p2), true)}</div>
+          <div class="p-stats">${h2h.meetings.length} مواجهة · أهداف ${h2h.p1gf}-${h2h.p2gf}</div>
+        </div>
+        <div style="text-align:left">
+          <div class="score-pill rank1">${h2h.p1win} - ${h2h.draw} - ${h2h.p2win}</div>
+          <div class="p-stats">فوز ${playerName(p1)} - تعادل - فوز ${playerName(p2)}</div>
+        </div>
+      </div>
+      <h2 style="margin-top:18px;">📋 تفاصيل المواجهات</h2>
+      ${h2h.meetings.map(m=>`
+        <div class="analysis-card">
+          <div><div class="p-name">${escapeHtml_(m.teamA.name)} ${m.scoreA} - ${m.scoreB} ${escapeHtml_(m.teamB.name)}</div><div class="p-stats">📅 ${m.date}</div></div>
+        </div>
+      `).join('')}
+    `;
+    return;
+  }
 
   const stats = computeStats(filtered).filter(s=>s.played>0);
   if(stats.length===0){
@@ -1622,10 +2082,29 @@ function renderAnalysis(){
     renderPodium(filtered); renderChart(filtered);
     return;
   }
+  const hot = computeHottestMatch(filtered);
+  const duos = computeBestDuo(filtered).slice(0,3);
+  let extraHtml = '';
+  if(hot){
+    extraHtml += hotMatchCardHtml_('🔥 أكتر مباراة أهداف', hot.mostGoals);
+    if(hot.biggestDiff !== hot.mostGoals) extraHtml += hotMatchCardHtml_('💥 أكبر فارق فوز', hot.biggestDiff);
+  }
+  if(duos.length){
+    extraHtml += `<h2 style="margin-top:18px;">👯 أفضل ثنائي في الزوجي</h2>`;
+    extraHtml += duos.map(d=>`
+      <div class="duo-card">
+        <div>${d.players.map(pid=>avatarNameHtml(playerName(pid), true)).join(' + ')}</div>
+        <div style="text-align:left">
+          <div class="score-pill rank1">${d.winRate}% فوز</div>
+          <div class="p-stats">${d.played} مباراة معًا · ${d.win} فوز</div>
+        </div>
+      </div>
+    `).join('');
+  }
   el.innerHTML = stats.map((s,i)=>`
     <div class="analysis-card ${i===0?'top':''}">
       <div>
-        <div class="p-name">${i===0?'👑 ':''}${i+1}. ${s.name}</div>
+        <div class="p-name">${i===0?'👑 ':''}${i+1}. ${avatarNameHtml(s.name, true)} ${streakPillHtml(s.id, filtered)}</div>
         <div class="p-stats">${s.played} مباراة · ${s.win} فوز · ${s.draw} تعادل · ${s.loss} خسارة · أهداف ${s.gf}-${s.ga}</div>
       </div>
       <div style="text-align:left">
@@ -1633,7 +2112,7 @@ function renderAnalysis(){
         <div class="p-stats">${s.winRate}% فوز</div>
       </div>
     </div>
-  `).join('');
+  `).join('') + extraHtml;
   renderPodium(filtered);
   renderChart(filtered);
 }
@@ -1645,11 +2124,14 @@ function renderHero(){
   const totalMatches = DATA.matches.length;
   const totalGoals = DATA.matches.reduce((acc,m)=>acc+m.scoreA+m.scoreB, 0);
   el.innerHTML = `
-    <div class="chip"><div class="num">${totalMatches}</div><div class="lbl">مباراة متسجلة</div></div>
-    <div class="chip"><div class="num">${totalGoals}</div><div class="lbl">هدف إجمالي</div></div>
-    <div class="chip"><div class="num" style="color:var(--gold)">${top ? top.name : '—'}</div><div class="lbl">أفضل لاعب حاليًا</div></div>
-    <div class="chip"><div class="num">${DATA.players.length}</div><div class="lbl">لاعب في الدوري</div></div>
+    <div class="chip"><div class="num" id="cnt-matches">0</div><div class="lbl">مباراة متسجلة</div></div>
+    <div class="chip"><div class="num" id="cnt-goals">0</div><div class="lbl">هدف إجمالي</div></div>
+    <div class="chip"><div class="num" style="color:var(--gold)">${top ? escapeHtml_(top.name) : '—'}</div><div class="lbl">أفضل لاعب حاليًا</div></div>
+    <div class="chip"><div class="num" id="cnt-players">0</div><div class="lbl">لاعب في الدوري</div></div>
   `;
+  animateCounter(document.getElementById('cnt-matches'), totalMatches);
+  animateCounter(document.getElementById('cnt-goals'), totalGoals);
+  animateCounter(document.getElementById('cnt-players'), DATA.players.length);
 }
 
 
