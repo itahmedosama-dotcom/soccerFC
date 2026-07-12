@@ -7,6 +7,14 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Teko:wght@500;600;700&family=Cairo:wght@400;600;700;800&family=Space+Mono&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="styles.css">
+<link rel="manifest" href="manifest.json">
+<link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<meta name="theme-color" content="#0f2a1c">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="دوري الأصحاب">
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 <body>
@@ -16,7 +24,15 @@
   <div class="eyebrow">FC · دوري بيت الشباب</div>
   <h1 id="gateTitle">جاري التحميل</h1>
   <div class="sub" id="gateSub">بنجيب البيانات الصبر مفتاح الفرج...</div>
-  <div class="spinner" id="gateSpinner"></div>
+  <div id="gateSpinner" class="gate-skeleton">
+    <div class="skeleton-line w-60"></div>
+    <div class="skeleton-line w-40"></div>
+    <div class="skeleton-cards-row">
+      <div class="skeleton-card"></div>
+      <div class="skeleton-card"></div>
+      <div class="skeleton-card"></div>
+    </div>
+  </div>
 
   <div id="bootstrapForm" class="login-form hidden">
     <div class="sub" style="margin-bottom:12px;">مفيش حسابات لسه، اعمل حساب الأدمن الأول.</div>
@@ -99,6 +115,7 @@
   <div class="top-nav">
     <span id="saveStatus" class="save-status hidden"></span>
     <button class="ghost" onclick="refreshData()" id="refreshBtn">🔄 تحديث</button>
+    <button class="ghost hidden" onclick="installPwa()" id="installBtn">📲 ثبّت التطبيق</button>
     <button class="ghost admin-only" onclick="toggleSettings()" id="settingsBtn">⚙️ الإعدادات</button>
     <button class="danger" onclick="logout()">🚪 تسجيل خروج</button>
   </div>
@@ -546,15 +563,27 @@ function showSaveStatus(state){
   else { el.textContent = '⚠️ فشل الحفظ'; el.className = 'save-status error'; }
 }
 
+function showMatchesSkeleton(){
+  const el = document.getElementById('matchesTableWrap');
+  if(!el) return;
+  el.innerHTML = `<div class="matches-cards">
+    <div class="match-card skeleton"></div>
+    <div class="match-card skeleton"></div>
+    <div class="match-card skeleton"></div>
+  </div>`;
+}
+
 async function refreshData(){
   const btn = document.getElementById('refreshBtn');
   if(btn){ btn.disabled = true; btn.textContent = '⏳ بيحدث...'; }
+  showMatchesSkeleton();
   try{
     await fetchData();
     if(expireAnnouncements()) pushData();
     renderAll();
     if(ROLE) renderAnnouncement();
   }catch(e){
+    renderMatchesTable(); // نرجع نعرض آخر بيانات محفوظة بدل ما نسيب شكل التحميل عالق
     alert('مقدرش أجيب آخر تحديث. تأكد من الإنترنت.');
   }
   if(btn){ btn.disabled = false; btn.textContent = '🔄 تحديث'; }
@@ -1505,6 +1534,27 @@ function playerName(id){
 }
 
 const AI_ICON_SVG = '<svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M12 2a1 1 0 0 1 1 1v1.06A6.5 6.5 0 0 1 18.94 10H20a1 1 0 1 1 0 2h-1.06a6.5 6.5 0 0 1-5.94 5.94V19a1 1 0 1 1-2 0v-1.06A6.5 6.5 0 0 1 5.06 12H4a1 1 0 1 1 0-2h1.06A6.5 6.5 0 0 1 11 4.06V3a1 1 0 0 1 1-1Zm0 4.5a5.5 5.5 0 1 0 0 11 5.5 5.5 0 0 0 0-11ZM9.75 11a1.25 1.25 0 1 1 0 2.5 1.25 1.25 0 0 1 0-2.5Zm4.5 0a1.25 1.25 0 1 1 0 2.5 1.25 1.25 0 0 1 0-2.5Z" fill="white"/></svg>';
+const WA_ICON_SVG = '<svg viewBox="0 0 32 32" width="15" height="15" fill="white"><path d="M16.001 3C9.373 3 4 8.373 4 15c0 2.34.66 4.52 1.804 6.375L4 29l7.822-1.762A11.93 11.93 0 0 0 16.001 27C22.63 27 28 21.627 28 15S22.63 3 16.001 3zm0 21.75a9.7 9.7 0 0 1-4.95-1.354l-.355-.21-4.643 1.046 1.023-4.523-.232-.37A9.71 9.71 0 0 1 6.25 15c0-5.385 4.366-9.75 9.751-9.75S25.75 9.615 25.75 15 21.386 24.75 16.001 24.75zm5.34-7.29c-.293-.147-1.73-.854-1.998-.951-.268-.098-.463-.147-.658.147-.195.293-.756.951-.927 1.146-.171.196-.342.22-.634.073-.293-.147-1.236-.456-2.354-1.454-.87-.776-1.457-1.734-1.628-2.027-.171-.293-.018-.451.129-.597.132-.132.293-.342.44-.513.146-.171.195-.293.293-.488.098-.196.049-.367-.024-.514-.073-.147-.658-1.588-.902-2.174-.238-.571-.48-.494-.658-.503l-.561-.01c-.196 0-.514.073-.783.367-.268.293-1.025 1.003-1.025 2.444s1.05 2.834 1.196 3.03c.146.195 2.066 3.155 5.008 4.424.7.302 1.246.483 1.672.618.702.223 1.342.192 1.848.116.564-.084 1.73-.707 1.973-1.39.244-.684.244-1.27.171-1.39-.073-.122-.268-.196-.561-.343z"/></svg>';
+
+// بيبني نص نتيجة المباراة وبيبعتها على طول لواتساب (شير مباشر لجروب الأصحاب من غير ما تحتاج تنسخ حاجة يدويًا)
+function shareMatchToWhatsapp(matchId){
+  const m = DATA.matches.find(x=>x.id===matchId);
+  if(!m) return;
+  const aWin = m.scoreA > m.scoreB, bWin = m.scoreB > m.scoreA, draw = m.scoreA === m.scoreB;
+  const resultLine = draw ? 'تعادل 🤝' : (aWin ? `${m.teamA.name} فاز 🏆` : `${m.teamB.name} فاز 🏆`);
+  const text =
+    `⚽ دوري الأصحاب\n` +
+    `📅 ${m.date}\n` +
+    `${m.teamA.name}  ${m.scoreA} - ${m.scoreB}  ${m.teamB.name}\n` +
+    `${resultLine}` +
+    (m.aiComment ? `\n🤖 ${m.aiComment}` : '');
+
+  if(navigator.share){
+    navigator.share({ title:'نتيجة المباراة', text }).catch(()=>{});
+  } else {
+    window.open('https://wa.me/?text=' + encodeURIComponent(text), '_blank');
+  }
+}
 
 function renderMatchesTable(){
   const el = document.getElementById('matchesTableWrap');
@@ -1560,6 +1610,7 @@ function renderMatchesTable(){
       <div class="match-card-footer">
         <div class="match-actions">
           <button class="ai-mini-btn" id="aiBtn-${m.id}" onclick="requestAIComment('${m.id}', true)" title="اطلب تحليل الذكاء الاصطناعي للمباراة دي دلوقتي">${AI_ICON_SVG}</button>
+          <button class="wa-mini-btn" onclick="shareMatchToWhatsapp('${m.id}')" title="ابعت نتيجة المباراة دي على واتساب">${WA_ICON_SVG}</button>
           ${ROLE==='admin' ? `<span class="del" onclick="startEditMatch('${m.id}')">✎ تصحيح</span> · <span class="del" onclick="removeMatch('${m.id}')">🗑️ حذف</span>` : ''}
         </div>
       </div>
@@ -1896,7 +1947,7 @@ function copyAISummary(){
   const textEl = document.getElementById('aiSummaryText');
   if(!textEl || !textEl.textContent) return;
   navigator.clipboard.writeText(textEl.textContent).then(()=>{
-    alert('اتنسخ ✅ افتح الواتساب والصقه.');
+    showToast('اتنسخ ✅ افتح الواتساب والصقه.', 'success');
   }).catch(()=>{
     alert('مقدرش أنسخ تلقائيًا، انسخ النص يدويًا.');
   });
@@ -2203,7 +2254,7 @@ async function shareAISummaryAsImage(){
     }catch(e){ /* المستخدم لغى المشاركة، هنكمل بالتحميل */ }
   }
   downloadBlob_(blob, 'ملخص-الفترة.png');
-  alert('اتنزلت الصورة ✅ افتحها من المعرض وابعتها في الواتساب.');
+  showToast('اتنزلت الصورة ✅ افتحها من المعرض وابعتها في الواتساب.', 'success');
 }
 
 // دالة مخصوصة لتحميل الصورة مباشرة، من غير ما تحاول تفتح شاشة المشاركة —
@@ -2212,7 +2263,7 @@ async function downloadAISummaryImage(){
   const blob = await buildSummaryImageBlob_();
   if(!blob){ alert('اعمل الملخص الأول قبل ما تنزّله.'); return; }
   downloadBlob_(blob, 'ملخص-الفترة.png');
-  alert('اتنزلت الصورة ✅ تقدر تلاقيها في مجلد التحميلات (Downloads).');
+  showToast('اتنزلت الصورة ✅ تقدر تلاقيها في مجلد التحميلات (Downloads).', 'success');
 }
 
 function renderAnalysis(){
@@ -2365,6 +2416,47 @@ function renderAll(){
 }
 
 init();
+
+// تسجيل الـ Service Worker عشان الموقع يبقى قابل للتثبيت كأبليكيشن (PWA)
+if('serviceWorker' in navigator){
+  window.addEventListener('load', ()=>{
+    navigator.serviceWorker.register('service-worker.js').catch(()=>{});
+  });
+}
+
+// زرار "ثبّت التطبيق" - بيظهر بس لو المتصفح فعليًا بيدعم التثبيت (مش كل المتصفحات بتدعمه زي سفاري آيفون،
+// وفي الحالة دي المستخدم بيثبت من قايمة "مشاركة" ← "أضف إلى الشاشة الرئيسية" يدويًا)
+let deferredInstallPrompt = null;
+window.addEventListener('beforeinstallprompt', (e)=>{
+  e.preventDefault();
+  deferredInstallPrompt = e;
+  const btn = document.getElementById('installBtn');
+  if(btn) btn.classList.remove('hidden');
+});
+// آيفون (سفاري) مش بيدعم beforeinstallprompt، فبنورّي الزرار على طول هناك عشان يعرف إنه يقدر يثبت يدويًا
+const isIos_ = /iphone|ipad|ipod/i.test(navigator.userAgent);
+const isStandalone_ = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
+if(isIos_ && !isStandalone_){
+  const btn = document.getElementById('installBtn');
+  if(btn) btn.classList.remove('hidden');
+}
+async function installPwa(){
+  const btn = document.getElementById('installBtn');
+  if(!deferredInstallPrompt){
+    showToast('من متصفحك: دوس زرار المشاركة ⬆️ واختار "أضف إلى الشاشة الرئيسية".', 'info');
+    return;
+  }
+  deferredInstallPrompt.prompt();
+  const choice = await deferredInstallPrompt.userChoice;
+  deferredInstallPrompt = null;
+  if(btn) btn.classList.add('hidden');
+  if(choice && choice.outcome === 'accepted') showToast('اتثبت التطبيق ✅', 'success');
+}
+window.addEventListener('appinstalled', ()=>{
+  const btn = document.getElementById('installBtn');
+  if(btn) btn.classList.add('hidden');
+  deferredInstallPrompt = null;
+});
 </script>
 <div class="whatsapp-fab-wrap no-print">
   <a href="https://wa.me/966532927939" target="_blank" rel="noopener" class="whatsapp-fab" aria-label="تواصل عبر واتساب">
