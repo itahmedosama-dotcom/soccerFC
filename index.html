@@ -182,6 +182,7 @@
     <div id="aiSummaryBox" class="ai-summary-box hidden">
       <div class="ai-summary-text" id="aiSummaryText"></div>
       <button class="ghost" onclick="copyAISummary()">📋 انسخ للواتساب</button>
+      <button class="ghost" onclick="shareAISummaryAsImage()">📤 شير كصورة</button>
     </div>
     <div class="print-bar no-print">
       <button class="ghost" onclick="printFullPage()">🖨️ طباعة الصفحة كلها</button>
@@ -1358,6 +1359,7 @@ async function generateAISummary(){
     if(json && json.summary){
       textEl.textContent = json.summary;
       box.classList.remove('hidden');
+      LAST_SUMMARY_STATS = stats; // نفس الإحصائيات دي هتتستخدم لو عمل شير كصورة
     } else {
       alert('معرفش أعمل الملخص دلوقتي.' + (json && json.error ? ('\nالسبب: ' + json.error) : ' تأكد إنك حطيت مفتاح Gemini في الـ Apps Script، وحاول تاني.'));
     }
@@ -1375,6 +1377,119 @@ function copyAISummary(){
   }).catch(()=>{
     alert('مقدرش أنسخ تلقائيًا، انسخ النص يدويًا.');
   });
+}
+
+let LAST_SUMMARY_STATS = null; // آخر إحصائيات اتحسبت وقت ما اتعمل الملخص، بتتستخدم في صورة الشير
+
+function wrapCanvasText_(ctx, text, maxWidth, font){
+  ctx.font = font;
+  const words = text.split(/\s+/).filter(Boolean);
+  const lines = [];
+  let current = '';
+  words.forEach(w=>{
+    const test = current ? current + ' ' + w : w;
+    if(ctx.measureText(test).width > maxWidth && current){
+      lines.push(current);
+      current = w;
+    } else {
+      current = test;
+    }
+  });
+  if(current) lines.push(current);
+  return lines;
+}
+
+async function shareAISummaryAsImage(){
+  const textEl = document.getElementById('aiSummaryText');
+  const summaryText = textEl ? textEl.textContent : '';
+  if(!summaryText){ alert('اعمل الملخص الأول قبل ما تشيره.'); return; }
+  const stats = LAST_SUMMARY_STATS || [];
+
+  if(document.fonts && document.fonts.ready){ try{ await document.fonts.ready; }catch(e){} }
+
+  const W = 720, PAD = 36;
+  const contentW = W - PAD*2;
+  const titleFont = '700 28px Cairo, sans-serif';
+  const subFont = '600 16px Cairo, sans-serif';
+  const statFont = '600 17px Cairo, sans-serif';
+  const bodyFont = '600 18px Cairo, sans-serif';
+
+  const measureCanvas = document.createElement('canvas');
+  const mctx = measureCanvas.getContext('2d');
+  const statLines = stats.map((s,i)=> `${i+1}. ${s.name} — ${s.played} م · ${s.win} ف · ${s.draw} ت · ${s.loss} خ · ${s.points} نقطة`);
+  const wrappedSummary = wrapCanvasText_(mctx, '🤖 ' + summaryText, contentW, bodyFont);
+
+  const rowH = { sub:24, title:44, gap:26, stat:28, body:28 };
+  let H = PAD + rowH.sub + rowH.title + rowH.gap + (statLines.length * rowH.stat) + rowH.gap + (wrappedSummary.length * rowH.body) + PAD;
+
+  const scale = 2;
+  const canvas = document.createElement('canvas');
+  canvas.width = W*scale; canvas.height = H*scale;
+  const ctx = canvas.getContext('2d');
+  ctx.scale(scale, scale);
+  ctx.direction = 'rtl';
+  ctx.textAlign = 'right';
+
+  const grad = ctx.createLinearGradient(0,0,0,H);
+  grad.addColorStop(0, '#123522');
+  grad.addColorStop(1, '#07130d');
+  ctx.fillStyle = grad;
+  ctx.fillRect(0,0,W,H);
+  ctx.strokeStyle = 'rgba(212,175,85,0.4)';
+  ctx.lineWidth = 2;
+  ctx.strokeRect(6,6,W-12,H-12);
+
+  const rightX = W - PAD;
+  let cy = PAD;
+
+  cy += rowH.sub - 6;
+  ctx.fillStyle = '#d9a94a';
+  ctx.font = subFont;
+  ctx.fillText('FC · دوري بيت الشباب', rightX, cy);
+
+  cy += rowH.title - 12;
+  ctx.fillStyle = '#f6f1e2';
+  ctx.font = titleFont;
+  ctx.fillText('🏆 ملخص الفترة', rightX, cy);
+
+  cy += rowH.gap - 12;
+  ctx.strokeStyle = 'rgba(255,255,255,0.18)';
+  ctx.beginPath(); ctx.moveTo(PAD, cy); ctx.lineTo(W-PAD, cy); ctx.stroke();
+
+  ctx.font = statFont;
+  statLines.forEach((line, idx)=>{
+    cy += rowH.stat;
+    ctx.fillStyle = idx===0 ? '#ffd166' : '#d8ecdf';
+    ctx.fillText(line, rightX, cy);
+  });
+
+  cy += rowH.gap - 12;
+  ctx.strokeStyle = 'rgba(255,255,255,0.18)';
+  ctx.beginPath(); ctx.moveTo(PAD, cy); ctx.lineTo(W-PAD, cy); ctx.stroke();
+
+  ctx.font = bodyFont;
+  ctx.fillStyle = '#ffe9ac';
+  wrappedSummary.forEach(line=>{
+    cy += rowH.body;
+    ctx.fillText(line, rightX, cy);
+  });
+
+  canvas.toBlob(async (blob)=>{
+    if(!blob){ alert('معرفش أعمل الصورة، حاول تاني.'); return; }
+    const file = new File([blob], 'ملخص-الفترة.png', { type:'image/png' });
+    if(navigator.canShare && navigator.canShare({files:[file]})){
+      try{
+        await navigator.share({ files:[file], title:'ملخص الفترة', text:'ملخص فترة دوري بيت الشباب ⚽' });
+        return;
+      }catch(e){ /* المستخدم لغى المشاركة، هنكمل بالتحميل */ }
+    }
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = 'ملخص-الفترة.png';
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    setTimeout(()=>URL.revokeObjectURL(url), 3000);
+    alert('اتنزلت الصورة ✅ افتحها من المعرض وابعتها في الواتساب.');
+  }, 'image/png');
 }
 
 function renderAnalysis(){
