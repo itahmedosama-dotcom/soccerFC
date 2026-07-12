@@ -78,6 +78,8 @@
     <div class="sub">تم إرسال طلبك. استنى موافقة الأدمن، وبعدين تقدر تدخل بنفس اليوزر والباسورد.</div>
     <div style="margin-top:14px;"><button class="ghost" style="width:100%" onclick="showLogin()">رجوع لتسجيل الدخول</button></div>
   </div>
+
+  <div class="app-footer login-footer">© جميع حقوق الملكية الفكرية لهذا التطبيق محفوظة لدى الشركة المطوّرة MGA Land Solutions EGY</div>
 </div>
 
 <div class="wrap hidden" id="appWrap">
@@ -271,6 +273,8 @@
   </section>
 
   <div id="printSinglePlayerArea"></div>
+
+  <div class="app-footer">© جميع حقوق الملكية الفكرية لهذا التطبيق محفوظة لدى الشركة المطوّرة MGA Land Solutions EGY</div>
 
 </div>
 
@@ -1894,6 +1898,80 @@ function copyAISummary(){
 
 let LAST_SUMMARY_STATS = null; // آخر إحصائيات اتحسبت وقت ما اتعمل الملخص، بتتستخدم في صورة الشير
 
+// ====== شات مساعد الذكاء الاصطناعي للتحليلات (أيقونة منفصلة جنب الواتساب) ======
+let aiChatHistory = [];
+let aiChatOpen = false;
+
+function toggleAiChat(force){
+  const panel = document.getElementById('aiChatPanel');
+  if(!panel) return;
+  aiChatOpen = (typeof force === 'boolean') ? force : !aiChatOpen;
+  panel.classList.toggle('hidden', !aiChatOpen);
+  if(aiChatOpen){
+    const input = document.getElementById('aiChatInput');
+    if(input) setTimeout(()=>input.focus(), 50);
+  }
+}
+
+function buildAiChatContext_(){
+  const matches = (typeof DATA !== 'undefined' && DATA.matches) ? DATA.matches : [];
+  if(!matches.length) return 'مفيش مباريات متسجلة لسه.';
+  const stats = computeStats(matches).filter(s=>s.played>0).slice(0, 12);
+  const playersLines = stats.map((s,i)=> `${i+1}. ${s.name}: ${s.played} مباراة، ${s.win} فوز، ${s.draw} تعادل، ${s.loss} خسارة، أهداف ${s.gf}-${s.ga}، ${s.points} نقطة، نسبة فوز ${s.winRate}%`).join('\n');
+  const teamStats = (typeof computeTeamStats === 'function') ? computeTeamStats(matches).slice(0, 8) : [];
+  const teamLines = teamStats.map((t,i)=> `${i+1}. فريق ${t.name}: ${t.played} مباراة، ${t.win} فوز، ${t.draw} تعادل، ${t.loss} خسارة، أهداف ${t.gf}-${t.ga}`).join('\n');
+  const recentMatches = matches.slice(-8).map(m=> `${m.date || ''}: ${m.teamA.name} ${m.scoreA} - ${m.scoreB} ${m.teamB.name}`).join('\n');
+  return [
+    'ترتيب اللاعبين (حسب النقاط):', playersLines || 'مفيش بيانات لاعبين كفاية.',
+    '', 'إحصائيات الفرق:', teamLines || 'مفيش بيانات فرق كفاية.',
+    '', 'آخر المباريات:', recentMatches || 'مفيش مباريات مسجلة.'
+  ].join('\n');
+}
+
+function appendAiChatMsg_(text, cls){
+  const wrap = document.getElementById('aiChatMessages');
+  if(!wrap) return null;
+  const el = document.createElement('div');
+  el.className = 'ai-chat-msg ' + cls;
+  el.textContent = text;
+  wrap.appendChild(el);
+  wrap.scrollTop = wrap.scrollHeight;
+  return el;
+}
+
+async function sendAiChatMessage(){
+  const input = document.getElementById('aiChatInput');
+  const sendBtn = document.getElementById('aiChatSendBtn');
+  if(!input) return;
+  const question = input.value.trim();
+  if(!question) return;
+  input.value = '';
+  appendAiChatMsg_(question, 'user');
+  const typingEl = appendAiChatMsg_('بيكتب...', 'ai typing');
+  if(sendBtn) sendBtn.disabled = true;
+  try{
+    const context = buildAiChatContext_();
+    const res = await fetch(SHEET_API_URL, {
+      method:'POST',
+      headers:{'Content-Type':'text/plain;charset=utf-8'},
+      body: JSON.stringify({ action:'aiChat', question:question, context:context, history: aiChatHistory.slice(-6) })
+    });
+    const json = await res.json();
+    if(typingEl) typingEl.remove();
+    if(json && json.answer){
+      appendAiChatMsg_(json.answer, 'ai');
+      aiChatHistory.push({role:'user', text:question});
+      aiChatHistory.push({role:'ai', text:json.answer});
+    } else {
+      appendAiChatMsg_('معرفش أرد دلوقتي.' + (json && json.error ? (' (' + json.error + ')') : ' حاول تاني بعد شوية.'), 'ai error');
+    }
+  }catch(e){
+    if(typingEl) typingEl.remove();
+    appendAiChatMsg_('مقدرش أوصل لخدمة الذكاء الاصطناعي. تأكد إن الإنترنت شغال.', 'ai error');
+  }
+  if(sendBtn) sendBtn.disabled = false;
+}
+
 function wrapCanvasText_(ctx, text, maxWidth, font){
   ctx.font = font;
   const words = text.split(/\s+/).filter(Boolean);
@@ -2177,6 +2255,26 @@ init();
 <a href="https://wa.me/966532927939" target="_blank" rel="noopener" class="whatsapp-fab" aria-label="تواصل عبر واتساب">
   <svg viewBox="0 0 32 32" width="28" height="28" fill="white"><path d="M16.001 3C9.373 3 4 8.373 4 15c0 2.34.66 4.52 1.804 6.375L4 29l7.822-1.762A11.93 11.93 0 0 0 16.001 27C22.63 27 28 21.627 28 15S22.63 3 16.001 3zm0 21.75a9.7 9.7 0 0 1-4.95-1.354l-.355-.21-4.643 1.046 1.023-4.523-.232-.37A9.71 9.71 0 0 1 6.25 15c0-5.385 4.366-9.75 9.751-9.75S25.75 9.615 25.75 15 21.386 24.75 16.001 24.75zm5.34-7.29c-.293-.147-1.73-.854-1.998-.951-.268-.098-.463-.147-.658.147-.195.293-.756.951-.927 1.146-.171.196-.342.22-.634.073-.293-.147-1.236-.456-2.354-1.454-.87-.776-1.457-1.734-1.628-2.027-.171-.293-.018-.451.129-.597.132-.132.293-.342.44-.513.146-.171.195-.293.293-.488.098-.196.049-.367-.024-.514-.073-.147-.658-1.588-.902-2.174-.238-.571-.48-.494-.658-.503l-.561-.01c-.196 0-.514.073-.783.367-.268.293-1.025 1.003-1.025 2.444s1.05 2.834 1.196 3.03c.146.195 2.066 3.155 5.008 4.424.7.302 1.246.483 1.672.618.702.223 1.342.192 1.848.116.564-.084 1.73-.707 1.973-1.39.244-.684.244-1.27.171-1.39-.073-.122-.268-.196-.561-.343z"/></svg>
 </a>
+
+<button type="button" id="aiChatFab" class="ai-chat-fab no-print" aria-label="اسأل مساعد الذكاء الاصطناعي عن التحليلات" onclick="toggleAiChat()">
+  <span class="fab-dot"></span>
+  <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M12 2a1 1 0 0 1 1 1v1.06A7.002 7.002 0 0 1 19 11v1.5l1.6 2.13a1 1 0 0 1-.8 1.6H4.2a1 1 0 0 1-.8-1.6L5 12.5V11a7.002 7.002 0 0 1 6-6.94V3a1 1 0 0 1 1-1Z" fill="white"/><circle cx="9" cy="11.2" r="1.15" fill="#2b6cff"/><circle cx="15" cy="11.2" r="1.15" fill="#2b6cff"/><path d="M9 19a3 3 0 0 0 6 0H9Z" fill="white"/></svg>
+</button>
+
+<div id="aiChatPanel" class="ai-chat-panel hidden no-print">
+  <div class="ai-chat-header">
+    <div class="ai-chat-title"><span class="dot"></span> مساعد التحليلات الذكي</div>
+    <button type="button" class="ai-chat-close" onclick="toggleAiChat(false)" aria-label="إغلاق">✕</button>
+  </div>
+  <div id="aiChatMessages" class="ai-chat-messages">
+    <div class="ai-chat-msg ai">أهلاً 👋 أنا مساعدك للتحليلات. اسألني أي سؤال عن ترتيب اللاعبين، النتايج، أو أي تعليق عايز رأيي فيه.</div>
+  </div>
+  <div class="ai-chat-hint" id="aiChatHint"></div>
+  <div class="ai-chat-input-row">
+    <input id="aiChatInput" type="text" placeholder="اكتب سؤالك عن التحليلات..." onkeydown="if(event.key==='Enter'){sendAiChatMessage();}">
+    <button type="button" onclick="sendAiChatMessage()" id="aiChatSendBtn" aria-label="إرسال">➤</button>
+  </div>
+</div>
 
 </body>
 </html>
