@@ -116,13 +116,29 @@
     <span id="saveStatus" class="save-status hidden"></span>
     <button class="ghost" onclick="refreshData()" id="refreshBtn">🔄 تحديث</button>
     <button class="ghost hidden" onclick="installPwa()" id="installBtn">📲 ثبّت التطبيق</button>
-    <button class="ghost admin-only" onclick="toggleSettings()" id="settingsBtn">⚙️ الإعدادات</button>
     <button class="danger" onclick="logout()">🚪 تسجيل خروج</button>
   </div>
 
+  <div class="page-nav no-print">
+    <button type="button" class="page-nav-btn active" data-page="pageProfile" onclick="showPage('pageProfile')">🙍‍♂️ صفحتي الشخصية</button>
+    <button type="button" class="page-nav-btn" data-page="pageResults" onclick="showPage('pageResults')">🏆 نتائج التحدي</button>
+    <button type="button" class="page-nav-btn admin-only" data-page="pageAddMatch" onclick="showPage('pageAddMatch')">➕ إضافة مباراة</button>
+    <button type="button" class="page-nav-btn admin-only" data-page="pageAdmin" onclick="showPage('pageAdmin')">⚙️ الإدارة</button>
+  </div>
+
+  <div id="pageProfile" class="page-view">
   <div id="myStatsSection"></div>
 
-  <section id="settingsSection" class="admin-only hidden">
+  <section id="viewerPlayersSection" style="display:none;">
+    <h2>اللاعبين</h2>
+    <div class="players-list" id="playersListViewer"></div>
+  </section>
+  </div>
+
+  <div id="pageAdmin" class="page-view hidden admin-only">
+  <h2 class="page-title">⚙️ الإدارة</h2>
+
+  <section id="settingsSection" class="admin-only">
     <h2>الشريط الإعلاني</h2>
     <div class="row">
       <div style="flex:3">
@@ -141,12 +157,12 @@
     <div id="announcementsListWrap"></div>
   </section>
 
-  <section id="settingsSection3" class="admin-only hidden">
+  <section id="settingsSection3" class="admin-only">
     <h2>طلبات الانضمام</h2>
     <div id="pendingList"></div>
   </section>
 
-  <section id="settingsSection2" class="admin-only hidden">
+  <section id="settingsSection2" class="admin-only">
     <h2>الإعدادات · إدارة المستخدمين</h2>
     <div class="row">
       <div><label>الاسم</label><input id="newUserName" placeholder="مثلاً: سارة"></div>
@@ -178,10 +194,35 @@
     </div>
   </section>
 
-  <section id="matchesSection">
-    <h2>سجل المباريات</h2>
-    <div id="matchesTableWrap"></div>
+  <section class="admin-only">
+    <h2>اللاعبين</h2>
+    <div class="row">
+      <div style="flex:2"><label>اسم اللاعب</label><input id="playerName" placeholder="مثلاً: أحمد"></div>
+      <div style="flex:0 0 auto; align-self:flex-end;"><button onclick="addPlayer()">إضافة لاعب</button></div>
+    </div>
+    <div class="players-list" id="playersList"></div>
   </section>
+
+  <section class="admin-only">
+    <h2>الفرق</h2>
+    <div class="row">
+      <div style="flex:2"><label>اسم الفريق</label><input id="teamName" placeholder="مثلاً: ريال مدريد"></div>
+      <div style="flex:0 0 auto; align-self:flex-end;"><button onclick="addTeam()">إضافة فريق</button></div>
+    </div>
+    <div class="players-list" id="teamsList"></div>
+  </section>
+  </div>
+
+  <div id="pageResults" class="page-view hidden">
+  <h2 class="page-title">🏆 نتائج التحدي</h2>
+
+  <details class="collapsible" id="matchesDetails">
+    <summary>📋 سجل المباريات <span class="arrow">▾</span></summary>
+    <div class="collapsible-body">
+      <div id="matchesTableWrap"></div>
+    </div>
+  </details>
+
 
   <section id="analysisSection">
     <h2>تحليل الأفضل</h2>
@@ -227,31 +268,20 @@
       <select id="printPlayerSelect"></select>
       <button class="ghost" onclick="printSelectedPlayer()">🖨️ طباعة تحليل اللاعب ده</button>
     </div>
+    <div class="row no-print" id="modeTabsWrap" style="margin-top:2px;">
+      <div class="mode-tabs">
+        <button type="button" class="mode-tab active" data-mode="all" onclick="setAnalysisMode('all')">🌍 الكل</button>
+        <button type="button" class="mode-tab" data-mode="1v1" onclick="setAnalysisMode('1v1')">🎯 فردي (1×1)</button>
+        <button type="button" class="mode-tab" data-mode="2v2" onclick="setAnalysisMode('2v2')">👥 زوجي (2×2)</button>
+      </div>
+    </div>
+    <h2 id="podiumTitle" style="margin-top:16px;">🏆 منصة التتويج</h2>
     <div id="podium"></div><canvas id="statsChart" style="max-height:320px;margin:20px 0"></canvas><div id="analysisWrap"></div>
   </section>
+  </div>
 
-  <section class="admin-only">
-    <h2>اللاعبين</h2>
-    <div class="row">
-      <div style="flex:2"><label>اسم اللاعب</label><input id="playerName" placeholder="مثلاً: أحمد"></div>
-      <div style="flex:0 0 auto; align-self:flex-end;"><button onclick="addPlayer()">إضافة لاعب</button></div>
-    </div>
-    <div class="players-list" id="playersList"></div>
-  </section>
-
-  <section class="admin-only">
-    <h2>الفرق</h2>
-    <div class="row">
-      <div style="flex:2"><label>اسم الفريق</label><input id="teamName" placeholder="مثلاً: ريال مدريد"></div>
-      <div style="flex:0 0 auto; align-self:flex-end;"><button onclick="addTeam()">إضافة فريق</button></div>
-    </div>
-    <div class="players-list" id="teamsList"></div>
-  </section>
-
-  <section id="viewerPlayersSection" style="display:none;">
-    <h2>اللاعبين</h2>
-    <div class="players-list" id="playersListViewer"></div>
-  </section>
+  <div id="pageAddMatch" class="page-view hidden admin-only">
+  <h2 class="page-title">➕ إضافة مباراة جديدة</h2>
 
   <section class="admin-only">
     <h2>تسجيل مباراة جديدة</h2>
@@ -288,6 +318,7 @@
       <div style="align-self:flex-end;"><button onclick="addMatch()">حفظ المباراة</button></div>
     </div>
   </section>
+  </div>
 
   <div id="printSinglePlayerArea"></div>
 
@@ -844,17 +875,15 @@ function applyRole(){
   const badge = document.getElementById('roleBadge');
   badge.textContent = (ROLE==='admin' ? '🛡️ أدمن' : '👁️ مشاهد') + ' · ' + CURRENT_USER.name;
 
-  const matchesSection = document.getElementById('matchesSection');
-  if(matchesSection) matchesSection.style.display = '';
+  showPage('pageProfile');
 }
 
-function toggleSettings(){
-  document.getElementById('settingsSection').classList.toggle('hidden');
-  document.getElementById('settingsSection2').classList.toggle('hidden');
-  document.getElementById('settingsSection3').classList.toggle('hidden');
-  document.getElementById('announcementText').value = '';
-  document.getElementById('announcementExpiry').value = '';
-  renderAnnouncementsList();
+// ====== التنقل بين صفحات التطبيق (صفحتي / نتائج التحدي / إضافة مباراة / الإدارة) ======
+function showPage(pageId){
+  document.querySelectorAll('.page-view').forEach(el=> el.classList.add('hidden'));
+  const target = document.getElementById(pageId);
+  if(target) target.classList.remove('hidden');
+  document.querySelectorAll('.page-nav-btn').forEach(b=> b.classList.toggle('active', b.dataset.page===pageId));
 }
 
 async function addUser(){
@@ -2266,12 +2295,69 @@ async function downloadAISummaryImage(){
   showToast('اتنزلت الصورة ✅ تقدر تلاقيها في مجلد التحميلات (Downloads).', 'success');
 }
 
+// ====== تبويب فردي / زوجي / الكل لترتيب اللاعبين ======
+let currentAnalysisMode = 'all'; // all | 1v1 | 2v2
+function setAnalysisMode(mode){
+  currentAnalysisMode = mode;
+  document.querySelectorAll('.mode-tab').forEach(b=> b.classList.toggle('active', b.dataset.mode===mode));
+  renderAnalysis();
+}
+function matchesForMode_(matches, mode){
+  return mode==='all' ? matches : matches.filter(m=>m.mode===mode);
+}
+const MODE_LABEL = { all:'العام', '1v1':'الفردي', '2v2':'الزوجي' };
+
+// بيبني جدول ترتيب اللاعبين: اسم اللاعب في عمود، وكل بياناته (مباراة/فوز/تعادل/خسارة/أهداف...) في صفوف الجدول
+function statsTableHtml_(stats, matches){
+  if(!stats.length) return '<div class="empty">لسه مفيش مباريات في الفترة أو النوع ده.</div>';
+  const rows = stats.map((s,i)=>`
+    <tr class="${i===0?'rank-1':''}">
+      <td class="col-rank">${i===0?'👑':i+1}</td>
+      <td class="col-name">${avatarNameHtml(s.name, true)} ${streakPillHtml(s.id, matches)}</td>
+      <td>${s.played}</td>
+      <td>${s.win}</td>
+      <td>${s.draw}</td>
+      <td>${s.loss}</td>
+      <td>${s.gf}-${s.ga}</td>
+      <td class="col-points">${s.points}</td>
+      <td>${s.winRate}%</td>
+    </tr>`).join('');
+  return `
+    <div class="stats-table-wrap">
+      <table class="stats-table">
+        <thead>
+          <tr>
+            <th>#</th>
+            <th class="col-name">اسم اللاعب</th>
+            <th>مباراة</th>
+            <th>فوز</th>
+            <th>تعادل</th>
+            <th>خسارة</th>
+            <th>أهداف</th>
+            <th>نقطة</th>
+            <th>% فوز</th>
+          </tr>
+        </thead>
+        <tbody>${rows}</tbody>
+      </table>
+    </div>`;
+}
+
 function renderAnalysis(){
   const el = document.getElementById('analysisWrap');
   const podiumEl = document.getElementById('podium');
+  const podiumTitleEl = document.getElementById('podiumTitle');
+  const modeTabsEl = document.getElementById('modeTabsWrap');
   const typeSel = document.getElementById('analysisFilterType');
   const type = typeSel ? typeSel.value : 'all';
   const filtered = getFilteredMatches();
+
+  if(modeTabsEl) modeTabsEl.style.display = (type==='all') ? '' : 'none';
+  if(podiumTitleEl){
+    podiumTitleEl.style.display = (type==='all') ? '' : 'none';
+    const podiumTitles = { all:'🏆 منصة التتويج العامة', '1v1':'🏆 منصة تتويج الفردي', '2v2':'🏆 منصة تتويج الزوجي' };
+    podiumTitleEl.textContent = podiumTitles[currentAnalysisMode] || podiumTitles.all;
+  }
 
   if(type === 'player'){
     if(podiumEl) podiumEl.innerHTML = '';
@@ -2319,14 +2405,15 @@ function renderAnalysis(){
     return;
   }
 
-  const stats = computeStats(filtered).filter(s=>s.played>0);
+  const modeMatches = matchesForMode_(filtered, currentAnalysisMode);
+  const stats = computeStats(modeMatches).filter(s=>s.played>0);
   if(stats.length===0){
-    el.innerHTML = '<div class="empty">سجّل مباريات في الفترة دي عشان يظهر التحليل.</div>';
-    renderPodium(filtered); renderChart(filtered);
+    el.innerHTML = `<div class="empty">لسه مفيش مباريات ${currentAnalysisMode==='all'?'':MODE_LABEL[currentAnalysisMode]} متسجلة في الفترة دي.</div>`;
+    renderPodium(modeMatches); renderChart(modeMatches);
     return;
   }
-  const hot = computeHottestMatch(filtered);
-  const duos = computeBestDuo(filtered).slice(0,3);
+  const hot = computeHottestMatch(modeMatches);
+  const duos = currentAnalysisMode==='1v1' ? [] : computeBestDuo(modeMatches).slice(0,3);
   let extraHtml = '';
   if(hot){
     extraHtml += hotMatchCardHtml_('🔥 أكتر مباراة أهداف', hot.mostGoals);
@@ -2344,20 +2431,9 @@ function renderAnalysis(){
       </div>
     `).join('');
   }
-  el.innerHTML = stats.map((s,i)=>`
-    <div class="analysis-card ${i===0?'top':''}">
-      <div>
-        <div class="p-name">${i===0?'👑 ':''}${i+1}. ${avatarNameHtml(s.name, true)} ${streakPillHtml(s.id, filtered)}</div>
-        <div class="p-stats">${s.played} مباراة · ${s.win} فوز · ${s.draw} تعادل · ${s.loss} خسارة · أهداف ${s.gf}-${s.ga}</div>
-      </div>
-      <div style="text-align:left">
-        <div class="score-pill ${i===0?'rank1':''}">${s.points} نقطة</div>
-        <div class="p-stats">${s.winRate}% فوز</div>
-      </div>
-    </div>
-  `).join('') + extraHtml;
-  renderPodium(filtered);
-  renderChart(filtered);
+  el.innerHTML = statsTableHtml_(stats, modeMatches) + extraHtml;
+  renderPodium(modeMatches);
+  renderChart(modeMatches);
 }
 
 function renderHero(){

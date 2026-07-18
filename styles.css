@@ -109,6 +109,40 @@
   .analysis-card.top{border-color:var(--gold); background:linear-gradient(90deg, rgba(233,196,106,0.12), transparent);}
   .p-name{font-weight:700; font-size:15px;}
   .p-stats{font-size:12px; color:var(--text-dim); font-family:'Space Mono', monospace;}
+
+  /* تبويبات فردي/زوجي/الكل */
+  .mode-tabs{display:flex; gap:8px; flex-wrap:wrap;}
+  .mode-tab{background:rgba(255,255,255,0.04); border:1px solid var(--line); color:var(--text-dim); padding:8px 16px; border-radius:999px; font-size:13.5px; font-weight:700; cursor:pointer; transition:.15s;}
+  .mode-tab:hover{border-color:var(--gold); color:var(--text);}
+  .mode-tab.active{background:rgba(233,196,106,.16); border-color:var(--gold); color:var(--gold);}
+
+  /* جدول الترتيب */
+  .stats-table-wrap{overflow-x:auto; border-radius:12px; border:1px solid var(--line); margin:10px 0 20px; background:rgba(255,255,255,0.02);}
+  table.stats-table{width:100%; min-width:560px; border-collapse:collapse; font-size:13.5px;}
+  table.stats-table thead th{position:sticky; top:0; background:var(--pitch-card,#0d2015); color:var(--text-dim); font-weight:700; font-size:11.5px; text-transform:uppercase; letter-spacing:.03em; padding:10px 8px; text-align:center; border-bottom:1px solid var(--line); white-space:nowrap;}
+  table.stats-table thead th.col-name{text-align:right;}
+  table.stats-table tbody td{padding:9px 8px; text-align:center; border-bottom:1px solid var(--line); white-space:nowrap;}
+  table.stats-table tbody tr:hover td{background:rgba(255,255,255,0.03);}
+  table.stats-table tbody tr.rank-1 td{background:rgba(233,196,106,.09);}
+  table.stats-table td.col-name{text-align:right; font-weight:700; display:flex; align-items:center; gap:6px;}
+  table.stats-table td.col-points{color:var(--gold); font-family:'Teko', sans-serif; font-size:19px; font-weight:800;}
+  table.stats-table td.col-rank{font-family:'Teko', sans-serif; font-size:17px; color:var(--text-dim); width:30px;}
+  .section-subtitle{font-size:12.5px; color:var(--text-dim); margin:-6px 0 10px;}
+
+  /* تنقل بين الصفحات (شخصية / نتائج التحدي / إضافة مباراة / الإدارة) */
+  .page-nav{display:flex; gap:8px; flex-wrap:wrap; margin:14px 0 20px;}
+  .page-nav-btn{background:rgba(255,255,255,0.03); border:1px solid var(--line); color:var(--text-dim); padding:10px 18px; border-radius:12px; font-size:14px; font-weight:700; cursor:pointer; transition:.15s;}
+  .page-nav-btn:hover{border-color:var(--gold); color:var(--text);}
+  .page-nav-btn.active{background:linear-gradient(90deg, rgba(233,196,106,.18), rgba(233,196,106,.05)); border-color:var(--gold); color:var(--gold);}
+  .page-title{font-family:'Teko', sans-serif; font-size:28px; color:var(--gold); letter-spacing:.02em; margin:4px 0 16px; display:flex; align-items:center; gap:8px;}
+
+  /* سجل المباريات القابل للطي */
+  details.collapsible{border:1px solid var(--line); border-radius:14px; padding:0 16px; background:rgba(255,255,255,0.02); margin-bottom:10px;}
+  details.collapsible summary{cursor:pointer; list-style:none; padding:16px 0; font-family:'Teko', sans-serif; font-size:22px; color:var(--gold); display:flex; align-items:center; justify-content:space-between;}
+  details.collapsible summary::-webkit-details-marker{display:none;}
+  details.collapsible summary .arrow{transition:transform .2s; font-size:16px; color:var(--text-dim);}
+  details.collapsible[open] summary .arrow{transform:rotate(180deg);}
+  details.collapsible .collapsible-body{padding-bottom:14px;}
   .sync-note{font-size:11.5px; color:var(--text-dim); margin-top:10px; line-height:1.7;}
   @media(max-width:600px){ h1{font-size:40px;} }
 
@@ -275,7 +309,8 @@ padding:18px;border-radius:16px;min-width:140px;text-align:center;
   #printSinglePlayerArea{ display:none; }
   body.print-single-player #appWrap > *{ display:none !important; }
   body.print-single-player #printSinglePlayerArea{ display:block !important; }
-  body.print-analysis-only #appWrap > *:not(#analysisSection){ display:none !important; }
+  body.print-analysis-only #appWrap > *:not(#pageResults){ display:none !important; }
+  body.print-analysis-only #pageResults > *:not(#analysisSection){ display:none !important; }
 }
 
 .captcha-box{
